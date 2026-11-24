@@ -867,11 +867,16 @@
     const rw = window.innerWidth, rh = window.innerHeight;
     // Einheitlicher Bildausschnitt: Die Welt wird so skaliert, dass auf jedem Gerät ungefähr
     // gleich viel Strecke zu sehen ist (Breite ≈ VIEW_W, Höhe ≈ VIEW_H), egal ob Handy oder Laptop.
-    const VIEW_W = 1200, VIEW_H = 620, MIN_H = 480;
+    // MIN_W: so viel Strecke ist immer sichtbar (auch bei 4:3, Tablet oder Handy hochkant),
+    // MIN_H: so viel Höhe ist immer sichtbar (Sprung im Mond-Modus + Anzeige oben passen rein).
+    const VIEW_W = 1200, VIEW_H = 620, MIN_W = 1050, MIN_H = 500;
     let k = Math.max(rh / VIEW_H, rw / VIEW_W);   // füllt den Bildschirm, breite Geräte zoomen auf die Breite
-    k = Math.min(k, rh / MIN_H);                   // aber nie so weit, dass zu wenig Höhe bleibt
+    k = Math.min(k, rh / MIN_H, rw / MIN_W);       // aber nie so weit, dass Höhe oder Strecke fehlen
     VIEW_K = k;
     W = rw / k; H = rh / k;
+    // Anzeige oben und Ansagen auf großen Bildschirmen mitwachsen lassen
+    const uiZoom = Math.max(1, Math.min(1.6, k * 0.75));
+    for (const id of ['hud', 'banner']) { const el = document.getElementById(id); if (el) el.style.zoom = uiZoom; }
     cv.width = Math.round(rw * dpr); cv.height = Math.round(rh * dpr);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
     groundY = Math.round(Math.max(H * 0.66, Math.min(H * 0.74, H - 140)));
