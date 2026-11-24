@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#090b16">
+<meta name="description" content="Blockjump – halte die Farbe, spring im Takt.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blockjump">
+<title>Blockjump</title>
+<style>
+  :root { --pink:#ef476f; --yellow:#ffd166; --green:#06d6a0; --blue:#118ab2; --panel:rgba(18,22,44,.78); --text:#eef0ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#090b16; overflow:hidden; color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select:none; -webkit-user-select:none; }
+  canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; touch-action:none; }
+  body { touch-action:manipulation; -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
+  #rotate { position:fixed; inset:0; z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:#090b16; text-align:center; padding:30px; font-size:18px; font-weight:700; }
+  #rotate .phone { width:46px; height:78px; border:4px solid var(--text); border-radius:10px; animation:rot 2s ease-in-out infinite; }
+  @keyframes rot { 0%,20% { transform:rotate(0); } 50%,80% { transform:rotate(-90deg); } 100% { transform:rotate(0); } }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display:flex; } }
+  .installhint { display:none; font-size:13px; opacity:.8; margin:4px 0 0; }
+  .installhint.on { display:block; }
+
+  .vignette { position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.6) 100%); }
+
+  /* Screens */
+  .screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px;
+    opacity:0; pointer-events:none; transition:opacity .35s ease; background:rgba(6,8,18,.35); }
+  .screen.active { opacity:1; pointer-events:auto; }
+  .screen.dim { background:rgba(6,8,18,.6); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+  .panel { background:var(--panel); border:1px solid rgba(255,255,255,.09); border-radius:22px; padding:34px 38px;
+    width:min(440px, 94vw); max-height:92vh; overflow:auto; text-align:center; box-shadow:0 24px 70px rgba(0,0,0,.55);
+    transform:translateY(16px) scale(.97); transition:transform .4s cubic-bezier(.2,.9,.2,1); }
+  .screen.active .panel { transform:none; }
+  .title { font-size:clamp(32px, 8vw, 54px); margin:8px 0 4px; font-weight:900; letter-spacing:.04em; line-height:1; white-space:nowrap; }
+  .title span { display:inline-block; animation:bob 2.2s ease-in-out infinite; text-shadow:0 0 22px currentColor; }
+  @keyframes bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-7px); } }
+  .sub { opacity:.7; margin:6px 0 24px; }
+  h2 { margin:0 0 10px; font-size:34px; font-weight:900; }
+  .btn { display:block; width:100%; margin:10px 0; padding:14px 18px; font-family:inherit; font-size:17px; font-weight:650;
+    color:var(--text); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:14px;
+    cursor:pointer; transition:transform .12s, background .2s, border-color .2s; }
+  .btn:hover { background:rgba(255,255,255,.13); transform:translateY(-1px); }
+  .btn:active { transform:translateY(1px) scale(.99); }
+  .btn.primary { background:linear-gradient(90deg, var(--pink), var(--yellow), var(--green), var(--blue)); background-size:300% 100%;
+    color:#10131f; border:none; font-weight:800; animation:shine 6s linear infinite; }
+  @keyframes shine { 0% { background-position:0% 50%; } 50% { background-position:100% 50%; } 100% { background-position:0% 50%; } }
+  .best { margin:18px 0 2px; opacity:.85; }
+  .player { margin:-10px 0 18px; font-size:15px; opacity:.9; }
+  .player a, .linkbtn { color:var(--yellow); cursor:pointer; text-decoration:underline; background:none; border:none; font:inherit; padding:0; }
+  .alltime { margin:4px 0 0; font-size:14px; opacity:.75; }
+  .tabs { display:flex; gap:6px; background:rgba(255,255,255,.06); padding:4px; border-radius:12px; margin:14px 0 14px; }
+  .tab { flex:1; padding:9px; border:none; border-radius:9px; background:none; color:var(--text); font:600 15px inherit; font-family:inherit; cursor:pointer; opacity:.7; }
+  .tab.on { background:rgba(255,255,255,.14); opacity:1; }
+  .field { display:block; width:100%; margin:8px 0; padding:13px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.16);
+    background:rgba(0,0,0,.25); color:var(--text); font-family:inherit; font-size:16px; outline:none; user-select:text; -webkit-user-select:text; }
+  .field:focus { border-color:var(--yellow); box-shadow:0 0 0 3px rgba(255,209,102,.18); }
+  #login:not(.reg) .reg-only { display:none; }
+  .err { min-height:20px; margin:6px 0 0; color:#ff8fa3; font-size:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:12px 0 4px; }
+  .chip { padding:6px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:var(--text);
+    font-family:inherit; font-size:13px; cursor:pointer; }
+  .chip:hover { background:rgba(255,255,255,.14); }
+  .panel.wide { width:min(560px, 94vw); }
+  .mystats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 14px; }
+  .board { text-align:left; max-height:46vh; overflow:auto; border-radius:12px; background:rgba(0,0,0,.2); }
+  .row { display:grid; grid-template-columns:44px 1fr 80px 74px; gap:8px; align-items:center; padding:9px 12px; border-bottom:1px solid rgba(255,255,255,.06); font-size:15px; }
+  .row.head { font-size:11px; text-transform:uppercase; letter-spacing:.08em; opacity:.55; position:sticky; top:0; background:#141830; }
+  .row.me { background:rgba(255,209,102,.14); }
+  .row .rk { font-weight:900; text-align:center; }
+  .row .nm { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .sc { font-weight:900; text-align:right; }
+  .row .lv { opacity:.6; text-align:right; font-size:13px; }
+  .medal { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; color:#10131f; font-size:13px; }
+  .empty { padding:20px; text-align:center; opacity:.6; }
+  .rank { margin:-6px 0 12px; opacity:.85; }
+  .netstat { margin:10px 0 0; font-size:13px; font-weight:700; }
+  .netstat.on { color:var(--green); } .netstat.off { color:#ff8fa3; }
+  .linkbtn.small { font-size:13px; margin-top:8px; opacity:.8; }
+  #boardTitle small { display:block; font-size:13px; font-weight:600; opacity:.6; margin-top:2px; }
+  .keys { margin:4px 0 0; font-size:13px; opacity:.5; }
+
+  .cube { width:64px; height:64px; margin:0 auto 8px; border:20px solid; border-color:var(--pink) var(--yellow) var(--green) var(--blue);
+    background:#1b1f33; border-radius:4px; animation:turn 4.8s cubic-bezier(.6,0,.3,1) infinite; filter:drop-shadow(0 0 14px rgba(255,255,255,.18)); }
+  .cube.small { width:40px; height:40px; border-width:12px; animation:none; display:inline-block; vertical-align:middle; margin:0 10px 0 0; }
+  @keyframes turn { 0%,18% { transform:rotate(0); } 25%,43% { transform:rotate(90deg); } 50%,68% { transform:rotate(180deg); } 75%,93% { transform:rotate(270deg); } 100% { transform:rotate(360deg); } }
+
+  .steps { text-align:left; margin:8px 0 14px; padding:0; list-style:none; }
+  .steps li { display:flex; gap:12px; align-items:flex-start; margin:12px 0; line-height:1.4; }
+  .steps .n { flex:0 0 26px; height:26px; border-radius:8px; display:grid; place-items:center; font-weight:800; font-size:14px; color:#10131f; }
+  .sec { margin:18px 0 6px; font-size:18px; text-align:left; }
+  .secinfo { margin:0 0 10px; text-align:left; font-size:14px; line-height:1.45; opacity:.8; }
+  .modlist { display:grid; gap:8px; margin:0 0 14px; text-align:left; }
+  .moditem { display:flex; gap:12px; align-items:flex-start; background:rgba(255,255,255,.05); border-radius:12px; padding:10px 12px; }
+  .moditem i { flex:0 0 32px; height:32px; border-radius:9px; display:grid; place-items:center; font-style:normal; font-weight:900; font-size:17px; }
+  .moditem b { display:block; margin-bottom:2px; }
+  .moditem span { font-size:14px; line-height:1.4; opacity:.85; }
+  .symrow { display:flex; justify-content:center; gap:10px; margin:4px 0 12px; }
+  .symrow span { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; color:rgba(0,0,0,.6); font-size:16px; }
+  kbd { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-bottom-width:3px; border-radius:6px; padding:1px 7px; font-family:inherit; font-size:.9em; }
+
+  .bigscore { font-size:72px; font-weight:900; line-height:1; margin:6px 0 4px; background:linear-gradient(90deg,var(--pink),var(--yellow),var(--green),var(--blue));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .reason { opacity:.75; margin:0 0 14px; }
+  .record { display:none; margin:0 auto 14px; padding:6px 14px; border-radius:999px; background:var(--yellow); color:#10131f; font-weight:800;
+    width:max-content; animation:pulse 1s ease-in-out infinite; }
+  .record.on { display:block; }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 16px; }
+  .stat { background:rgba(255,255,255,.06); border-radius:12px; padding:10px; }
+  .stat b { display:block; font-size:22px; }
+  .stat span { font-size:12px; opacity:.6; text-transform:uppercase; letter-spacing:.08em; }
+
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-start; padding:18px 22px;
+    pointer-events:none; transition:opacity .3s; }
+  #hud.hidden { opacity:0; }
+  #score { font-size:34px; font-weight:900; line-height:1; text-shadow:0 0 18px rgba(255,255,255,.25); }
+  #lvl { font-size:13px; opacity:.7; margin-top:6px; letter-spacing:.06em; text-transform:uppercase; }
+  .prog { width:150px; height:5px; background:rgba(255,255,255,.12); border-radius:9px; margin-top:6px; overflow:hidden; }
+  #progIn { height:100%; width:0; background:linear-gradient(90deg,var(--pink),var(--yellow),var(--green),var(--blue)); border-radius:9px; transition:width .2s; }
+  #modBadge { margin-top:6px; font-size:13px; font-weight:700; opacity:0; transform:translateX(-10px); transition:opacity .4s, transform .4s; display:flex; align-items:center; gap:8px; }
+  #modBadge.on { opacity:.95; transform:none; }
+  #modBadge b { width:24px; height:24px; border-radius:7px; display:grid; place-items:center; font-size:14px; box-shadow:0 0 12px rgba(255,255,255,.2); }
+  #combo { margin-top:8px; font-size:16px; font-weight:900; color:var(--yellow); text-shadow:0 0 14px rgba(255,209,102,.6); min-height:20px; }
+  #combo.pop { animation:pop .25s ease-out; }
+  @keyframes pop { 0% { transform:scale(1.5); } 100% { transform:scale(1); } }
+  .hud-r { display:flex; gap:14px; align-items:center; }
+  .sw { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; opacity:.9; text-transform:uppercase; letter-spacing:.06em; }
+  .sw i { width:28px; height:28px; border-radius:7px; display:grid; place-items:center; font-style:normal; font-size:14px; color:rgba(0,0,0,.6);
+    transition:background .15s; box-shadow:0 0 14px rgba(255,255,255,.15); }
+  .sw.next i { width:22px; height:22px; font-size:11px; opacity:.75; }
+  #pauseBtn { pointer-events:auto; width:42px; height:42px; border-radius:12px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.08);
+    color:var(--text); font-size:14px; cursor:pointer; }
+
+  #songToast { position:fixed; left:50%; bottom:9%; transform:translateX(-50%); padding:10px 18px; border-radius:999px; pointer-events:none;
+    background:rgba(18,22,44,.8); border:1px solid rgba(255,255,255,.15); font-weight:700; letter-spacing:.03em; opacity:0; white-space:nowrap; }
+  #songToast.show { animation:toast 3s ease forwards; }
+  @keyframes toast { 0% { opacity:0; transform:translate(-50%, 16px); } 12%, 80% { opacity:1; transform:translate(-50%, 0); } 100% { opacity:0; transform:translate(-50%, -8px); } }
+  #banner { position:fixed; left:0; right:0; top:18%; text-align:center; pointer-events:none; opacity:0; }
+  #banner.show { animation:banner 2.8s cubic-bezier(.2,.9,.2,1) forwards; }
+  #banner h2 { font-size:clamp(40px,8vw,64px); margin:0; background:linear-gradient(90deg,var(--pink),var(--yellow),var(--green),var(--blue));
+    -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 0 18px rgba(255,255,255,.25)); }
+  #banner h3 { margin:2px 0 6px; font-size:20px; letter-spacing:.12em; text-transform:uppercase; }
+  #banner p { margin:0; opacity:.8; }
+  @keyframes banner { 0% { opacity:0; transform:scale(.7); } 12% { opacity:1; transform:scale(1.06); } 20% { transform:scale(1); } 82% { opacity:1; } 100% { opacity:0; transform:translateY(-14px); } }
+  /* Abstand zu Kamera-Aussparung und Rändern bei Handys */
+  .screen { padding:max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  #hud { padding-top:max(18px, env(safe-area-inset-top)); padding-left:max(22px, env(safe-area-inset-left)); padding-right:max(22px, env(safe-area-inset-right)); }
+  /* Kleine Bildschirmhöhe (Handy quer) */
+  @media (max-height: 520px) {
+    .panel { padding:16px 22px; border-radius:16px; max-height:calc(100vh - 16px); }
+    .title { font-size:26px; margin:0 0 4px; }
+    .panel > .cube { display:none; }
+    .sub { display:none; }
+    .player { margin:-4px 0 8px; font-size:13px; }
+    h2 { font-size:24px; margin-bottom:6px; }
+    .btn { padding:9px 14px; margin:6px 0; font-size:15px; }
+    .best, .alltime { margin:6px 0 0; font-size:13px; }
+    .keys { display:none; }
+    .field { padding:7px 12px; margin:4px 0; font-size:15px; }
+    .tabs { margin:6px 0; padding:3px; } .tab { padding:6px; font-size:14px; }
+    .err { min-height:0; margin:2px 0; font-size:13px; }
+    .netstat, #loginNote, .chips { margin:4px 0 0; font-size:12px; }
+    .player { margin:0 0 6px; }
+    .bigscore { font-size:48px; }
+    .stats { gap:6px; margin:4px 0 8px; } .stat { padding:6px; } .stat b { font-size:17px; }
+    #hud { padding:max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left)); }
+    #score { font-size:24px; } #lvl { font-size:10px; margin-top:3px; } .prog { width:110px; }
+    #combo { font-size:13px; margin-top:4px; } #modBadge { font-size:11px; }
+    .sw i { width:22px; height:22px; font-size:12px; } .sw.next i { width:18px; height:18px; } .sw { font-size:9px; }
+    #pauseBtn { width:36px; height:36px; }
+    #banner { top:12%; } #banner h2 { font-size:36px; } #banner h3 { font-size:15px; } #banner p { font-size:13px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="rotate"><div class="phone"></div>Bitte dreh dein Handy ins Querformat</div>
+<div class="vignette"></div>
+
+<div id="hud" class="hidden">
+  <div>
+    <div id="score">0</div>
+    <div id="lvl">Level 1</div>
+    <div class="prog"><div id="progIn"></div></div>
+    <div id="combo"></div>
+    <div id="modBadge"></div>
+  </div>
+  <div class="hud-r">
+    <div class="sw"><i id="swNow"></i><span>unten</span></div>
+    <div class="sw next"><i id="swNext"></i><span>nächste</span></div>
+    <button id="pauseBtn" data-act="pause" aria-label="Pause">❚❚</button>
+  </div>
+</div>
+<div id="banner"></div>
+<div id="songToast"></div>
+
+<div class="screen dim" id="login"><div class="panel">
+  <div class="cube"></div>
+  <h1 class="title" id="title2"></h1>
+  <div class="tabs"><button class="tab on" data-act="tabLogin" id="tabLogin">Anmelden</button><button class="tab" data-act="tabReg" id="tabReg">Neues Konto</button></div>
+  <form id="loginForm" autocomplete="off">
+    <input class="field" id="inName" maxlength="16" placeholder="Name" autocomplete="off" spellcheck="false">
+    <input class="field" id="inPw" type="password" placeholder="Passwort" autocomplete="off">
+    <input class="field reg-only" id="inPw2" type="password" placeholder="Passwort wiederholen" autocomplete="off">
+    <p class="err" id="loginErr"></p>
+    <button class="btn primary" type="submit" id="loginBtn">Anmelden</button>
+  </form>
+  <div class="chips" id="knownPlayers"></div>
+  <p class="netstat" id="netStat"></p>
+  <p class="keys" id="loginNote">Konten und Highscores werden auf diesem Gerät gespeichert. Bitte kein echtes Passwort verwenden.</p>
+  <button class="linkbtn small" data-act="toggleMode" id="modeLink"></button>
+</div></div>
+
+<div class="screen dim" id="board"><div class="panel wide">
+  <h2 id="boardTitle">Bestenliste</h2>
+  <div class="mystats" id="myStats"></div>
+  <div class="board" id="boardTable"></div>
+  <button class="btn" data-act="boardBack">Zurück</button>
+</div></div>
+
+<div class="screen active" id="menu"><div class="panel">
+  <div class="cube"></div>
+  <h1 class="title" id="title"></h1>
+  <p class="sub">Halte die Farbe. Spring im Takt.</p>
+  <p class="player">Angemeldet als <b id="menuName"></b> · <button class="linkbtn" data-act="logout">Spieler wechseln</button></p>
+  <button class="btn primary" data-act="play">Spielen</button>
+  <button class="btn" data-act="howto">Anleitung</button>
+  <button class="btn" data-act="board">Bestenliste</button>
+  <button class="btn" data-act="install" id="installBtn" style="display:none">App installieren</button>
+  <p class="installhint" id="installHint">iPhone/iPad: In Safari auf <b>Teilen</b> tippen, dann <b>„Zum Home-Bildschirm“</b>.</p>
+  <button class="btn" data-act="settings">Einstellungen</button>
+  <p class="best">Dein Rekord: <b id="menuBest">0</b></p>
+  <p class="alltime" id="menuAllTime"></p>
+  <p class="keys"><kbd>Leertaste</kbd> zum Starten · mit Ton spielen!</p>
+</div></div>
+
+<div class="screen dim" id="howto"><div class="panel">
+  <h2><span class="cube small"></span>So geht's</h2>
+  <ul class="steps">
+    <li><span class="n" style="background:var(--pink)">1</span><span>Der Boden wechselt die Farbe, immer genau im Takt der Musik. Die <b>Unterseite</b> deines Blocks muss immer zur Bodenfarbe passen.</span></li>
+    <li><span class="n" style="background:var(--yellow)">2</span><span><kbd>Leertaste</kbd> oder Tippen: <b>springen</b>.</span></li>
+    <li><span class="n" style="background:var(--green)">3</span><span>In der Luft nochmal drücken: <b>90° drehen</b>. Mehrmals drücken heißt mehrmals drehen.</span></li>
+    <li><span class="n" style="background:var(--blue)">4</span><span>Mit jedem Level wird der Beat schneller und es kommen Hindernisse dazu: <b>Löcher</b> (drüberspringen), <b>Stacheln</b> (drüberspringen, ohne zu drehen), <b>hängende Blöcke</b> (darunter nicht springen) und <b>Nebel</b> (Farbe erst kurz vorher sichtbar). Ab Level 5 dreht sich bei jedem Level nebenbei das <b>Glücksrad</b>. Der Effekt startet, wenn du durch das leuchtende Tor läufst.</span></li>
+    <li><span class="n" style="background:#fff">★</span><span>Landest du direkt auf dem Beat hinter einer Farbkante, gibt's <b>PERFEKT +5</b>. Jeder geschaffte Farbwechsel erhöht deine <b>Combo</b> und bringt mehr Punkte.</span></li>
+  </ul>
+  <p style="margin:0 0 4px;opacity:.8">Jede Farbe hat ein eigenes Symbol:</p>
+  <div class="symrow">
+    <span style="background:var(--pink)">●</span><span style="background:var(--yellow)">▲</span>
+    <span style="background:var(--green)">◆</span><span style="background:var(--blue)">✚</span>
+  </div>
+  <h3 class="sec">Glücksrad-Effekte (ab Level 5)</h3>
+  <p class="secinfo">Bei jedem Level-Up dreht sich oben rechts das Glücksrad, während du weiterspielst. Das Ergebnis erscheint groß in der Mitte und das Spiel wird kurz langsamer, damit du es lesen kannst. Der Effekt startet, sobald du hinter dem leuchtenden Tor zum ersten Mal den Boden berührst, und gilt bis zum nächsten Level.</p>
+  <div class="modlist" id="modList"></div>
+  <p class="keys"><kbd>P</kbd> / <kbd>Esc</kbd> Pause</p>
+  <button class="btn" data-act="menu">Zurück</button>
+</div></div>
+
+<div class="screen dim" id="settings"><div class="panel">
+  <h2>Einstellungen</h2>
+  <button class="btn" data-act="toggleMusic" id="optMusic"></button>
+  <button class="btn" data-act="toggleSound" id="optSound"></button>
+  <button class="btn" data-act="toggleSymbols" id="optSymbols"></button>
+  <button class="btn" data-act="toggleDir" id="optDir"></button>
+  <button class="btn" data-act="toggleShake" id="optShake"></button>
+  <button class="btn" data-act="toggleFx" id="optFx"></button>
+  <button class="btn" data-act="resetBest" id="optReset">Meinen Rekord löschen</button>
+  <button class="btn" data-act="menu">Zurück</button>
+</div></div>
+
+<div class="screen dim" id="pause"><div class="panel">
+  <h2>Pause</h2>
+  <button class="btn primary" data-act="resume">Weiter</button>
+  <button class="btn" data-act="play">Neu starten</button>
+  <button class="btn" data-act="menu">Hauptmenü</button>
+</div></div>
+
+<div class="screen dim" id="over"><div class="panel">
+  <h2>Vorbei!</h2>
+  <p class="reason" id="ovReason"></p>
+  <div class="bigscore" id="ovScore">0</div>
+  <div class="record" id="ovRecord">Neuer Rekord!</div>
+  <div class="stats">
+    <div class="stat"><b id="ovLevel">1</b><span>Level</span></div>
+    <div class="stat"><b id="ovBest">0</b><span>Dein Rekord</span></div>
+    <div class="stat"><b id="ovChanges">0</b><span>Max-Combo</span></div>
+    <div class="stat"><b id="ovPerfect">0</b><span>Perfekt</span></div>
+  </div>
+  <p class="rank" id="ovRank"></p>
+  <button class="btn primary" data-act="play">Nochmal</button>
+  <button class="btn" data-act="boardOver">Bestenliste</button>
+  <button class="btn" data-act="menu">Hauptmenü</button>
+  <p class="keys"><kbd>Leertaste</kbd> neue Runde · <kbd>Esc</kbd> Menü</p>
+</div></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('c'), ctx = cv.getContext('2d');
+
+  // ---------- Konstanten ----------
+  const COLORS = ['#ef476f', '#ffd166', '#06d6a0', '#118ab2'];   // Seiten: oben, rechts, unten, links
+  const NAMES  = ['Pink', 'Gelb', 'Grün', 'Blau'];
+  const SYMS   = ['●', '▲', '◆', '✚'];
+  const RGB = COLORS.map(h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]);
+  const rgba = (i, a) => `rgba(${RGB[i][0]},${RGB[i][1]},${RGB[i][2]},${a})`;
+  const SIZE = 60, GRAVITY = 2600, JUMP_V = 920, ROT_TIME = 0.1, AIR_SEC = 2 * JUMP_V / GRAVITY;
+
+
+  // Schwierigkeit pro Level: Tempo (BPM), Pixel pro Beat, mögliche Drehungen, Löcher, Abschnittslängen in Beats
+  const LEVELS = [
+    { name: 'Warm-up',     bpm: 106, ppb: 185, turns: [1,2],   gap: 0,    lens: [3, 3, 4, 4],    hint: 'Ein oder zwei Drehungen pro Farbwechsel.' },
+    { name: 'Volle Runde', bpm: 116, ppb: 195, turns: [1,2,3], gap: 0,    lens: [2, 3, 3, 4],    hint: 'Ab jetzt sind 1 bis 3 Drehungen möglich.' },
+    { name: 'Löcher',      bpm: 124, ppb: 205, turns: [1,2,3], gap: 0.25, lens: [2, 3, 3, 4],    hint: 'Achtung, Löcher im Boden! Drüberspringen.' },
+    { name: 'Stacheln',    bpm: 132, ppb: 215, turns: [1,2,3], gap: 0.25, spike: 0.25, lens: [2, 2, 3, 3], hint: 'Stacheln! Drüberspringen, ohne die Farbe zu wechseln.' },
+    { name: 'Rausch',      bpm: 140, ppb: 225, turns: [1,2,3], gap: 0.3,  spike: 0.25, lens: [2, 2, 3],    hint: 'Mehr Löcher, mehr Stacheln, volles Tempo.' },
+    { name: 'Decke',       bpm: 146, ppb: 235, turns: [1,2,3], gap: 0.3,  spike: 0.2, ceil: 0.25, lens: [2, 2, 3], hint: 'Hängende Blöcke! Darunter nicht springen.' },
+    { name: 'Parcours',    bpm: 152, ppb: 245, turns: [1,2,3], gap: 0.35, spike: 0.25, ceil: 0.25, lens: [2, 2, 3], hint: 'Alle Hindernisse gemischt.' },
+    { name: 'Nebel',       bpm: 158, ppb: 255, turns: [1,2,3], gap: 0.35, spike: 0.25, ceil: 0.25, fog: 0.3, lens: [2, 2, 3], hint: 'Graue Felder zeigen ihre Farbe erst kurz vorher.' },
+  ];
+  function levelCfg(n) {
+    if (n <= LEVELS.length) return LEVELS[n - 1];
+    const x = n - LEVELS.length;
+    return { name: 'Stufe ' + n, bpm: Math.min(176, 158 + x * 6), ppb: Math.min(285, 255 + x * 10), turns: [1,2,3], gap: 0.4,
+             spike: 0.3, ceil: 0.3, fog: Math.min(0.5, 0.3 + x * 0.05), lens: [2, 2, 3], hint: 'Noch schneller, noch mehr Nebel!' };
+  }
+  const SPIKE_W = 0.3;   // Breite der Stacheln in Beats
+  function threshold(n) { const t = [0, 0, 30, 75, 140, 220]; return n < t.length ? t[n] : 220 + (n - 5) * 100; }
+
+  // ---------- Einstellungen & Rekord ----------
+  const settings = { sound: true, music: true, dir: 1, shake: true, symbols: true, fx: 'auto' };
+  try { Object.assign(settings, JSON.parse(localStorage.getItem('farbblock-settings') || '{}')); } catch (e) {}
+  const saveSettings = () => { try { localStorage.setItem('farbblock-settings', JSON.stringify(settings)); } catch (e) {} };
+  // ---------- Spielerkonten (auf diesem Gerät) ----------
+  const ACC_KEY = 'blockjump-accounts', SES_KEY = 'blockjump-session';
+  let accounts = {};
+  try { accounts = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {}; } catch (e) {}
+  const saveAccounts = () => { try { localStorage.setItem(ACC_KEY, JSON.stringify(accounts)); } catch (e) {} };
+  const keyOf = n => n.trim().toLowerCase();
+  let player = null;
+  try { const k = localStorage.getItem(SES_KEY); if (k && accounts[k]) player = k; } catch (e) {}
+  // ---------- Online-Modus (Supabase) ----------
+  // Hier die zwei Werte aus dem Supabase-Projekt eintragen. Leer = nur Offline-Modus.
+  const ONLINE = { url: 'https://muskdmgtonlffnemqyuy.supabase.co', key: 'sb_publishable_Km6xF0heXhiuy_WkX9T4Kw_AQKtnXJY' };
+  const OSES_KEY = 'blockjump-online', MODE_KEY = 'blockjump-mode', PEND_KEY = 'blockjump-pending', ONAMES_KEY = 'blockjump-online-names';
+  const online = { ok: !!(ONLINE.url && ONLINE.key), session: null, profile: null, list: null, reachable: true };
+  let mode = 'local';
+  try { mode = online.ok && localStorage.getItem(MODE_KEY) !== 'local' ? 'online' : 'local'; } catch (e) { mode = online.ok ? 'online' : 'local'; }
+  try { const sv = JSON.parse(localStorage.getItem(OSES_KEY) || 'null'); if (sv && online.ok) { online.session = sv; online.profile = sv.profile || null; } } catch (e) {}
+  const saveOSession = () => {
+    try {
+      if (online.session) { online.session.profile = online.profile; localStorage.setItem(OSES_KEY, JSON.stringify(online.session)); }
+      else localStorage.removeItem(OSES_KEY);
+    } catch (e) {}
+  };
+  async function api(path, opt = {}) {
+    const h = { apikey: ONLINE.key, 'Content-Type': 'application/json' };
+    if (opt.auth !== false && online.session) h.Authorization = 'Bearer ' + online.session.access_token;
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 10000);
+    let r;
+    try {
+      r = await fetch(ONLINE.url.replace(/\/$/, '') + path, { method: opt.method || 'GET', headers: Object.assign(h, opt.headers || {}),
+        body: opt.body ? JSON.stringify(opt.body) : undefined, signal: ctl.signal });
+    } catch (e) { const er = new Error('offline'); er.offline = true; online.reachable = false; throw er; }
+    finally { clearTimeout(tm); }
+    online.reachable = true;
+    const txt = await r.text(); let data = null; try { data = txt ? JSON.parse(txt) : null; } catch (e) {}
+    if (!r.ok) {
+      const er = new Error((data && (data.msg || data.message || data.error_description || data.error)) || ('HTTP ' + r.status));
+      er.status = r.status; er.code = data && (data.error_code || data.code); throw er;
+    }
+    return data;
+  }
+  // Supabase braucht eine E-Mail-Adresse: Aus dem Namen wird eine feste Kunst-Adresse gebaut (niemand bekommt Mails).
+  async function emailFor(name) {
+    const k = 'blockjump:' + name.trim().toLowerCase();
+    let hex = '';
+    try {
+      const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k));
+      hex = [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
+      for (let i = 0; i < k.length; i++) { h1 = Math.imul(h1 ^ k.charCodeAt(i), 16777619); h2 = Math.imul(h2 ^ k.charCodeAt(i), 2246822519); }
+      hex = (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16) + k.length;
+    }
+    return 'u' + hex.slice(0, 40) + '@blockjump.game';
+  }
+  function takeSession(d) {
+    online.session = { access_token: d.access_token, refresh_token: d.refresh_token,
+      expires_at: d.expires_at || (Math.floor(Date.now() / 1000) + (d.expires_in || 3600)), uid: d.user && d.user.id };
+    saveOSession();
+  }
+  async function ensureFresh() {
+    if (!online.session) return false;
+    if (online.session.expires_at * 1000 > Date.now() + 60000) return true;
+    try {
+      const d = await api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', auth: false, body: { refresh_token: online.session.refresh_token } });
+      const prof = online.profile; takeSession(d); online.profile = prof; saveOSession(); return true;
+    } catch (e) { if (!e.offline) { online.session = null; online.profile = null; saveOSession(); } return false; }
+  }
+  async function loadProfile() {
+    const rows = await api('/rest/v1/scores?select=username,best,best_level,games&id=eq.' + encodeURIComponent(online.session.uid));
+    if (!rows || !rows.length) throw new Error('Profil nicht gefunden');
+    const r = rows[0];
+    online.profile = { name: r.username, best: r.best || 0, bestLevel: r.best_level || 0, games: r.games || 0 };
+    saveOSession();
+  }
+  async function fetchBoard() {
+    const rows = await api('/rest/v1/scores?select=id,username,best,best_level,games&order=best.desc,updated_at.asc&limit=100');
+    online.list = (rows || []).map(r => ({ k: r.id, name: r.username, best: r.best || 0, bestLevel: r.best_level || 0, games: r.games || 0 }));
+    return online.list;
+  }
+  // Ergebnisse, die ohne Internet entstanden sind, werden später nachgereicht
+  function loadPending() { try { return JSON.parse(localStorage.getItem(PEND_KEY) || '[]'); } catch (e) { return []; } }
+  function savePending(a) { try { localStorage.setItem(PEND_KEY, JSON.stringify(a.slice(-20))); } catch (e) {} }
+  async function submitOnline(sc, lvl) {
+    const queue = loadPending(); queue.push({ uid: online.session && online.session.uid, sc, lvl }); savePending(queue);
+    return flushPending();
+  }
+  async function flushPending() {
+    if (!online.session) return;
+    let queue = loadPending().filter(q => q.uid === online.session.uid);
+    if (!queue.length) return;
+    if (!(await ensureFresh())) return;
+    while (queue.length) {
+      const q = queue[0];
+      try {
+        const r = await api('/rest/v1/rpc/submit_score', { method: 'POST', body: { p_score: q.sc, p_level: q.lvl } });
+        const row = Array.isArray(r) ? r[0] : r;
+        if (row && online.profile) { online.profile.best = row.best; online.profile.games = row.games; online.profile.bestLevel = row.best_level; saveOSession(); }
+        queue.shift();
+      } catch (e) { if (e.offline) break; queue.shift(); }
+    }
+    savePending(loadPending().filter(q => q.uid !== online.session.uid).concat(queue));
+  }
+  function rememberName(n) {
+    try { const a = JSON.parse(localStorage.getItem(ONAMES_KEY) || '[]').filter(x => x.toLowerCase() !== n.toLowerCase()); a.unshift(n); localStorage.setItem(ONAMES_KEY, JSON.stringify(a.slice(0, 12))); } catch (e) {}
+  }
+  function onlineNames() { try { return JSON.parse(localStorage.getItem(ONAMES_KEY) || '[]'); } catch (e) { return []; } }
+
+  const curAcc = () => mode === 'online' ? online.profile : (player ? accounts[player] : null);
+  let best = curAcc() ? (curAcc().best || 0) : 0;
+  const saveBest = () => { const a = curAcc(); if (a) { a.best = best; saveAccounts(); } };
+  function randHex(n = 16) {
+    const a = new Uint8Array(n);
+    try { crypto.getRandomValues(a); } catch (e) { for (let i = 0; i < n; i++) a[i] = Math.floor(Math.random() * 256); }
+    return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Passwort wird nie im Klartext gespeichert, nur als gesalzener Hash (PBKDF2)
+  async function hashPw(pw, salt) {
+    try {
+      if (window.crypto && crypto.subtle) {
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+        const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(salt), iterations: 60000, hash: 'SHA-256' }, key, 256);
+        return 'p:' + [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (e) {}
+    let h1 = 0x811c9dc5, h2 = 0x12345678; const str = salt + ':' + pw;
+    for (let r = 0; r < 3000; r++) for (let i = 0; i < str.length; i++) {
+      h1 = Math.imul(h1 ^ str.charCodeAt(i), 16777619); h2 = Math.imul(h2 + str.charCodeAt(i) + r, 2246822519) ^ (h2 >>> 13);
+    }
+    return 'f:' + (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16);
+  }
+
+  // ---------- Audio ----------
+  // Signalweg: Drums -> Musik-Master | Bass/Pad/Arp -> "Duck"-Bus (pumpt mit der Bassdrum) -> Hochpass (Build-up) -> Master
+  // Lead/Arp schicken zusätzlich in ein Echo (punktierte Achtel). Master -> Kompressor -> Lautsprecher.
+  let actx = null, musicGain = null, noiseBuf = null;
+  const bus = {};
+  // Zwei "Decks" wie beim DJ: Der alte Song läuft auf einem aus, der neue auf dem anderen ein.
+  // Jedes Deck: Drums -> Lautstärke | Bass/Pads/Arp -> Pump-Gain -> Ton-Kanal (Hochpass, Tiefpass) -> Lautstärke -> Master
+  const decks = [];
+  let OUT = null;   // Deck, auf das gerade gespielt wird
+  function makeDeck() {
+    const d = { hpLast: 20 };
+    d.vol = actx.createGain(); d.vol.connect(musicGain);
+    d.drum = actx.createGain(); d.drum.connect(d.vol);
+    d.tonal = actx.createGain();
+    d.hp = actx.createBiquadFilter(); d.hp.type = 'highpass'; d.hp.frequency.value = 20;
+    d.lp = actx.createBiquadFilter(); d.lp.type = 'lowpass'; d.lp.frequency.value = 18000;
+    d.tonal.connect(d.hp).connect(d.lp).connect(d.vol);
+    d.duck = actx.createGain(); d.duck.connect(d.tonal);
+    d.lead = actx.createGain(); d.lead.connect(d.tonal);
+    return d;
+  }
+  function audio() {
+    if (!settings.sound && !settings.music) return null;
+    if (!actx) {
+      try {
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+        musicGain = actx.createGain(); musicGain.gain.value = 0.6;
+        const comp = actx.createDynamicsCompressor();
+        comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.15;
+        musicGain.connect(comp).connect(actx.destination);
+        bus.send = actx.createGain(); bus.send.gain.value = 0.32;
+        bus.delay = actx.createDelay(2); bus.delay.delayTime.value = 0.42;
+        bus.fb = actx.createGain(); bus.fb.gain.value = 0.38;
+        const dl = actx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 3000;
+        bus.send.connect(bus.delay); bus.delay.connect(dl); dl.connect(bus.fb); bus.fb.connect(bus.delay); dl.connect(musicGain);
+        decks.push(makeDeck(), makeDeck());
+        noiseBuf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
+        const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      } catch (e) { actx = null; return null; }
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  const midi = m => 440 * Math.pow(2, (m - 69) / 12);
+  function tone(f, dur, type = 'square', vol = 0.06, to = null, delay = 0, at = null, send = false) {
+    if (!settings.sound) return;
+    const a = audio(); if (!a) return;
+    const t = (at !== null ? at : a.currentTime) + delay, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(a.destination); if (send && bus.send) g.connect(bus.send);
+    o.start(t); o.stop(t + dur + 0.03);
+  }
+  function noiseHit(t, dur, vol, type, freq, dest) {
+    const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+    s.buffer = noiseBuf; f.type = type; f.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f).connect(g).connect(dest); s.start(t, Math.random() * 0.3, dur + 0.02);
+  }
+  // Nächster 16tel-Zeitpunkt, damit Effekt-Töne im Takt der Musik landen
+  function quantized() {
+    const now = actx.currentTime;
+    if (!G.useAudio || G.state !== 'play') return now;
+    const tq = timeOfBeat(Math.ceil(G.b * 4 + 0.01) / 4) + G.audioOffset;
+    return tq > now && tq - now < 0.12 ? tq : now;
+  }
+  // Pentatonik: Combo-Töne klettern immer höher
+  const CHIME_SCALE = [69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96];
+  const sfx = {
+    jump:    () => tone(300, 0.1, 'square', 0.03, 600),
+    rotate:  () => tone(1050, 0.04, 'triangle', 0.045, 1400),
+    land:    () => tone(140, 0.08, 'sine', 0.12, 65),
+    chime:   combo => {
+      if (!settings.sound || !audio()) return;
+      const m = CHIME_SCALE[(combo - 1) % CHIME_SCALE.length], t = quantized();
+      tone(midi(m), 0.4, 'triangle', 0.07, null, 0, t, true);
+      tone(midi(m + 12), 0.25, 'sine', 0.03, null, 0, t, true);
+    },
+    perfect: () => { if (!audio()) return; const t = quantized(); tone(midi(93), 0.12, 'triangle', 0.05, null, 0.06, t, true); tone(midi(100), 0.2, 'sine', 0.04, null, 0.12, t, true); },
+    combo:   () => { if (!audio()) return; const t = quantized(); [81, 84, 88, 93].forEach((m, i) => tone(midi(m), 0.18, 'square', 0.035, null, i * 0.06, t, true)); },
+    level:   () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.035, null, i * 0.09)),
+    die:     () => { if (settings.sound && audio()) noiseHit(actx.currentTime, 0.5, 0.4, 'lowpass', 1100, actx.destination); tone(320, 0.55, 'sawtooth', 0.07, 50); },
+    click:   () => tone(600, 0.04, 'triangle', 0.035),
+  };
+
+  // ================= MUSIK: 7 Songs – Song 1 für Level 1–2, danach mit jedem Level ein neuer =================
+  const N = m => 440 * Math.pow(2, (m - 69) / 12);
+
+  // Universelle Stimme für Bass, Lead, Arp, Pads, Glocken
+  function V(t, f, d, o = {}) {
+    const vol = o.vol || 0.05, att = o.att || 0.006, g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    if (o.sus) { g.gain.linearRampToValueAtTime(vol, t + att); g.gain.setValueAtTime(vol, t + Math.max(att, d * 0.85)); g.gain.linearRampToValueAtTime(0.0001, t + d); }
+    else { g.gain.exponentialRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + d); }
+    let input = g;
+    if (o.cut) {
+      const fl = actx.createBiquadFilter(); fl.type = 'lowpass'; fl.Q.value = o.q || 1;
+      fl.frequency.setValueAtTime(o.cut, t); if (o.cutEnd) fl.frequency.exponentialRampToValueAtTime(o.cutEnd, t + d);
+      fl.connect(g); input = fl;
+    }
+    (o.detune || [0]).forEach(c => {
+      const os = actx.createOscillator(); os.type = o.wave || 'sawtooth'; os.detune.value = c;
+      os.frequency.setValueAtTime(o.from || f, t); if (o.from) os.frequency.exponentialRampToValueAtTime(f, t + (o.glide || 0.06));
+      os.connect(input); os.start(t); os.stop(t + d + 0.05);
+    });
+    g.connect(o.dest || OUT.duck);
+    if (o.send) g.connect(bus.send);
+  }
+  const D = {
+    kick(t, v, duck = 0, dec = 0.22) {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.11);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + dec);
+      o.connect(g).connect(OUT.drum); o.start(t); o.stop(t + dec + 0.02);
+      if (duck > 0) { const bl = 60 / G.bpm; OUT.duck.gain.setValueAtTime(1 - duck, t); OUT.duck.gain.linearRampToValueAtTime(1, t + bl * 0.55); }
+    },
+    snare(t, v = 0.28, dec = 0.14) {
+      noiseHit(t, dec, v, 'bandpass', 1800, OUT.drum);
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(190, t);
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      o.connect(g).connect(OUT.drum); o.start(t); o.stop(t + 0.12);
+    },
+    clap(t, v = 0.3) { [0, 0.011, 0.022].forEach((k, i) => noiseHit(t + k, i === 2 ? 0.16 : 0.02, v, 'bandpass', 1500, OUT.drum)); },
+    hat(t, v, open = false) { noiseHit(t, open ? 0.2 : 0.04, v, 'highpass', 7500, OUT.drum); },
+    riser(t, d, v) {
+      const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+      s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.Q.value = 2;
+      f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(7000, t + d);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + d);
+      s.connect(f).connect(g).connect(musicGain); s.start(t); s.stop(t + d);
+    },
+    crash(t, big) {
+      noiseHit(t, big ? 1.6 : 0.9, big ? 0.2 : 0.1, 'highpass', 4500, musicGain);
+      if (!big) return;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.9);
+      g.gain.setValueAtTime(0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+      o.connect(g).connect(musicGain); o.start(t); o.stop(t + 1.05);
+    },
+  };
+  const mapMel = arr => { const m = {}; arr.forEach(n => m[n[0]] = n); return m; };
+
+  // Jeder Song: Akkorde (MIDI, 4 Takte), Melodie (64 Sechzehntel), Pump-Stärke und eine Funktion pro 16tel.
+  // c = { t, st (Schritt im Song), inBar, ch (Akkord), bl (Beat-Länge), s16, lv (1–3 innerhalb des Songs), mel (Melodie-Note oder undefined) }
+  const ALL_TRACKS = [
+    { // 1 – die ursprüngliche Musik
+      name: 'Retro Start', duck: 0,
+      chords: [[45,48,52],[41,45,48],[48,52,55],[43,47,50]], mel: {},
+      step(c) {
+        const { t, st, inBar, ch, bl, lv } = c;
+        if (st % 4 === 0) D.kick(t, inBar === 0 ? 0.75 : 0.6, 0, 0.2);
+        if (st % 8 === 0) V(t, N(ch[0]), bl * 1.6, { cut: 520, vol: 0.18, att: 0.01 });
+        if (lv >= 2 && st % 8 === 6) V(t, N(ch[2]), bl * 0.45, { cut: 520, vol: 0.18, att: 0.01 });
+        if (st % 4 === 2) D.hat(t, 0.12);
+        if (lv >= 3 && st % 2 === 1) D.hat(t, 0.045);
+        if (lv >= 3 && (inBar === 4 || inBar === 12)) D.snare(t);
+        if (lv >= 2 && st % 2 === 0) V(t, N([ch[0], ch[1], ch[2], ch[1]][(st / 2) % 4] + 24), 0.13, { wave: 'square', cut: 2400, vol: 0.03 });
+        if (lv >= 3 && inBar === 0) ch.forEach(m => V(t, N(m + 12), bl * 4, { wave: 'triangle', vol: 0.028, att: 0.3, sus: true }));
+      },
+    },
+    { // 2 – die pumpende Ohrwurm-Musik
+      name: 'Neon Pulse', duck: 0.72,
+      chords: [[45,48,52],[41,45,48],[48,52,55],[43,47,50]],
+      mel: mapMel([[0,76,2],[3,76,1],[4,74,2],[6,72,2],[8,74,3],[11,72,1],[12,69,4],[16,72,2],[19,72,1],[20,74,2],[22,76,2],[24,79,3],[27,76,1],[28,74,4],
+                   [32,76,2],[35,76,1],[36,79,2],[38,81,2],[40,79,3],[43,76,1],[44,74,4],[48,72,2],[51,74,1],[52,76,2],[54,74,2],[56,74,3],[59,72,1],[60,71,4]]),
+      step(c) {
+        const { t, st, inBar, ch, bl, s16, lv, mel } = c;
+        if (inBar === 0) ch.forEach(m => V(t, N(m + 12), bl * 4, { detune: [-9, 9], cut: 1500, vol: 0.014, att: 0.08, sus: true }));
+        if (st % 4 === 0) D.kick(t, inBar === 0 ? 0.95 : 0.8, this.duck, 0.24);
+        if (st % 4 === 2) D.hat(t, lv >= 2 ? 0.065 : 0.085, lv >= 2);
+        if (lv >= 2 && st % 2 === 1) D.hat(t, 0.022);
+        if (inBar === 4 || inBar === 12) D.clap(t);
+        if (lv >= 3 ? st % 4 !== 0 : st % 4 === 2) V(t, N(ch[0]), s16 * (lv >= 3 ? 0.9 : 1.7), { cut: 1400, cutEnd: 260, q: 4, vol: 0.2, att: 0.008 });
+        if (st % 2 === 0) V(t, N([ch[0], ch[1], ch[2], ch[1]][(st / 2) % 4] + 24), 0.1, { wave: 'square', vol: 0.016, send: true });
+        if (mel) {
+          V(t, N(mel[1]), mel[2] * s16 * 0.95, { detune: [-7, 7], cut: 5000, cutEnd: 1300, q: 3, vol: 0.045, dest: OUT.lead, send: true });
+          if (lv >= 3 && Math.floor(st / 64) % 2 === 1) V(t, N(mel[1] + 12), mel[2] * s16 * 0.9, { detune: [-7, 7], cut: 5000, cutEnd: 1300, vol: 0.022, dest: OUT.lead, send: true });
+        }
+      },
+    },
+    { // 3 – Chiptune, fröhlich in C-Dur
+      name: 'Pixel Hüpfer', duck: 0,
+      chords: [[48,52,55],[43,47,50],[45,48,52],[41,45,48]],
+      mel: mapMel([[0,72,1],[2,76,1],[4,79,2],[6,76,1],[8,84,2],[10,79,2],[12,76,2],[14,74,2],[16,74,1],[18,79,1],[20,83,2],[22,79,1],[24,86,2],[26,83,2],[28,79,4],
+                   [32,76,1],[34,81,1],[36,84,2],[38,81,1],[40,88,2],[42,84,2],[44,81,2],[46,79,2],[48,77,2],[50,76,2],[52,74,2],[54,72,2],[56,74,2],[58,76,2],[60,72,4]]),
+      step(c) {
+        const { t, st, inBar, ch, s16, lv, mel } = c;
+        if (inBar === 0 || inBar === 8 || (lv >= 2 && inBar === 10)) D.kick(t, 0.7, 0, 0.12);
+        if (inBar === 4 || inBar === 12) noiseHit(t, 0.1, 0.25, 'highpass', 2500, OUT.drum);
+        if (st % 2 === 0) D.hat(t, st % 4 === 2 ? 0.08 : 0.04);
+        if (lv >= 3 && st % 2 === 1) D.hat(t, 0.025);
+        if (st % 2 === 0) V(t, N(ch[0] + (st % 4 === 2 ? 12 : 0)), s16 * 1.6, { wave: 'triangle', vol: 0.22, att: 0.004 });
+        if (lv >= 2) V(t, N([ch[0], ch[1], ch[2]][st % 3] + 24), s16 * 0.9, { wave: 'square', vol: 0.012 });
+        if (mel) {
+          V(t, N(mel[1]), mel[2] * s16 * 0.9, { wave: 'square', vol: 0.035, cut: 4000, dest: OUT.lead, send: true });
+          if (lv >= 3) V(t, N(mel[1] - 12), mel[2] * s16 * 0.9, { wave: 'square', vol: 0.015, cut: 2000, dest: OUT.lead });
+        }
+      },
+    },
+    { // 4 – Synthwave in D-Moll
+      name: 'Mitternacht', duck: 0.3,
+      chords: [[38,41,45],[34,38,41],[41,45,48],[36,40,43]],
+      mel: mapMel([[0,74,6],[6,72,2],[8,69,4],[12,72,4],[16,70,6],[22,69,2],[24,65,4],[28,67,4],
+                   [32,69,6],[38,72,2],[40,77,4],[44,76,4],[48,74,4],[52,72,4],[56,76,4],[60,74,4]]),
+      step(c) {
+        const { t, st, inBar, ch, bl, s16, lv, mel } = c;
+        if (inBar === 0) ch.forEach(m => V(t, N(m + 24), bl * 4, { detune: [-12, 12], cut: 1800, vol: 0.013, att: 0.15, sus: true }));
+        if (inBar === 0 || inBar === 8 || (lv >= 2 && inBar === 10)) D.kick(t, 0.85, this.duck, 0.25);
+        if (inBar === 4 || inBar === 12) { D.snare(t, 0.3, 0.3); D.clap(t, 0.15); }
+        if (st % 2 === 0) D.hat(t, 0.05);
+        if (lv >= 3 && st % 2 === 1) D.hat(t, 0.02);
+        if (st % 2 === 0) V(t, N(ch[0]), s16 * 1.8, { cut: 800, vol: 0.14, att: 0.005 });
+        if (lv >= 2) V(t, N([ch[0], ch[1], ch[2], ch[1] + 12][st % 4] + 24), s16 * 0.9, { wave: 'triangle', vol: 0.03, send: true });
+        if (mel) {
+          V(t, N(mel[1]), mel[2] * s16, { detune: [-10, 10], cut: 2600, vol: 0.04, att: 0.03, sus: true, dest: OUT.lead, send: true });
+          if (lv >= 3) V(t, N(mel[1] + 12), mel[2] * s16, { wave: 'triangle', vol: 0.02, att: 0.03, sus: true, dest: OUT.lead, send: true });
+        }
+      },
+    },
+    { // 5 – Trap / Halftime mit 808 und Glocken in E-Moll
+      name: 'Tiefgang', duck: 0,
+      chords: [[40,43,47],[36,40,43],[43,47,50],[38,42,45]],
+      mel: mapMel([[0,83,2],[3,81,1],[4,79,2],[6,76,2],[10,79,2],[12,76,4],[16,79,2],[19,81,1],[20,83,2],[22,86,2],[26,83,2],[28,81,4],
+                   [32,83,2],[35,81,1],[36,79,2],[38,76,2],[42,74,2],[44,76,4],[48,74,2],[51,76,1],[52,79,2],[54,81,2],[56,79,2],[58,76,2],[60,74,4]]),
+      step(c) {
+        const { t, st, inBar, ch, bl, s16, lv, mel } = c;
+        if (inBar === 0) ch.forEach(m => V(t, N(m + 24), bl * 4, { wave: 'triangle', vol: 0.02, att: 0.2, sus: true }));
+        if (inBar === 0 || inBar === 6 || inBar === 10) {
+          D.kick(t, 0.8, 0, 0.18);
+          V(t, N(ch[0]), bl * 1.4, { wave: 'sine', vol: 0.32, att: 0.005, from: N(ch[0] + 5), glide: 0.08 });
+        }
+        if (inBar === 8) { D.clap(t, 0.35); D.snare(t, 0.2, 0.18); }
+        if (st % (lv >= 2 ? 1 : 2) === 0) D.hat(t, st % 4 === 0 ? 0.07 : 0.035);
+        if (lv >= 3 && (inBar === 14 || inBar === 15)) { D.hat(t + s16 / 3, 0.03); D.hat(t + 2 * s16 / 3, 0.03); }
+        if (mel) {
+          V(t, N(mel[1]), 0.6, { wave: 'sine', vol: 0.06, dest: OUT.lead, send: true });
+          V(t, N(mel[1] + 12), 0.25, { wave: 'triangle', vol: 0.02, dest: OUT.lead, send: true });
+        }
+        if (lv >= 2 && st % 8 === 4) V(t, N(ch[2] + 24), 0.3, { wave: 'sine', vol: 0.03, send: true });
+      },
+    },
+    { // 6 – Disco / Funk in G-Dur
+      name: 'Disco Fieber', duck: 0.4,
+      chords: [[43,47,50],[40,43,47],[45,48,52],[38,42,45]],
+      mel: mapMel([[0,79,1],[2,79,1],[3,81,1],[4,83,2],[7,81,1],[8,79,2],[10,76,2],[12,74,4],[16,76,1],[18,76,1],[19,79,1],[20,81,2],[23,79,1],[24,76,2],[26,74,2],[28,71,4],
+                   [32,72,1],[34,72,1],[35,76,1],[36,79,2],[39,81,1],[40,84,2],[42,83,2],[44,81,4],[48,78,1],[50,78,1],[51,79,1],[52,81,2],[55,79,1],[56,78,2],[58,76,2],[60,74,4]]),
+      step(c) {
+        const { t, st, inBar, ch, s16, lv, mel } = c;
+        if (st % 4 === 0) D.kick(t, 0.8, this.duck, 0.2);
+        if (st % 4 === 2) D.hat(t, 0.07, true);
+        if (lv >= 2 && st % 2 === 1) D.hat(t, 0.025);
+        if (inBar === 4 || inBar === 12) D.clap(t, 0.32);
+        if (st % 2 === 0) V(t, N(ch[0] + ((st / 2) % 2 ? 12 : 0)), s16 * 1.3, { cut: 1100, cutEnd: 300, q: 5, vol: 0.18, att: 0.004 });
+        if (lv >= 2 && st % 4 === 2) ch.forEach(m => V(t, N(m + 24), 0.09, { wave: 'square', cut: 2200, vol: 0.012 }));
+        if (mel) {
+          V(t, N(mel[1]), mel[2] * s16 * 0.85, { wave: 'square', cut: 3200, cutEnd: 1200, vol: 0.035, dest: OUT.lead, send: true });
+          if (lv >= 3) V(t, N(mel[1] + 12), mel[2] * s16 * 0.8, { wave: 'sawtooth', cut: 3000, vol: 0.015, dest: OUT.lead, send: true });
+        }
+      },
+    },
+    { // 7 – Trance in H-Moll
+      name: 'Gipfelsturm', duck: 0.75,
+      chords: [[47,50,54],[43,47,50],[38,42,45],[45,49,52]],
+      mel: mapMel([[0,66,4],[4,69,2],[6,71,2],[8,74,4],[12,73,4],[16,71,4],[20,69,2],[22,67,2],[24,66,4],[28,67,4],[32,69,4],[36,71,2],[38,74,2],[40,78,4],[44,76,4],[48,73,4],[52,74,2],[54,73,2],[56,69,4],[60,73,4]]),
+      step(c) {
+        const { t, st, inBar, ch, bl, s16, lv, mel } = c;
+        if (inBar === 0) ch.forEach(m => V(t, N(m + 24), bl * 4, { detune: [-15, 0, 15], cut: 2200, vol: 0.009, att: 0.05, sus: true }));
+        if (st % 4 === 0) D.kick(t, 0.9, this.duck, 0.25);
+        if (st % 4 === 2) D.hat(t, 0.075, true);
+        if (lv >= 3 && st % 2 === 1) D.hat(t, 0.025);
+        if (lv >= 2 && (inBar === 4 || inBar === 12)) D.clap(t, 0.28);
+        if (st % 4 !== 0) V(t, N(ch[0]), s16 * 0.9, { cut: 900, cutEnd: 300, q: 3, vol: 0.17, att: 0.004 });
+        if (lv >= 2) V(t, N([ch[0], ch[1], ch[2], ch[1] + 12][st % 4] + 24), s16 * 0.7, { detune: [-8, 8], cut: 3000, vol: 0.014, send: true });
+        if (mel) V(t, N(mel[1]), mel[2] * s16 * 0.95, { detune: [-14, 0, 14], cut: 4500, cutEnd: 1800, vol: 0.03, dest: OUT.lead, send: true });
+      },
+    },
+  ];
+  // Reihenfolge der Songs (ruhig -> cool), jeweils harmonisch verwandt mit dem nächsten:
+  // Retro Start (a-Moll) -> Mitternacht (d-Moll) -> Pixel Hüpfer (C-Dur) -> Neon Pulse (a-Moll)
+  // -> Tiefgang (e-Moll) -> Disco Fieber (G-Dur) -> Gipfelsturm (h-Moll) -> zurück zu Retro Start
+  const SONG_ORDER = ['Retro Start', 'Mitternacht', 'Pixel Hüpfer', 'Neon Pulse', 'Tiefgang', 'Disco Fieber', 'Gipfelsturm'];
+  const TRACKS = SONG_ORDER.map(n => ALL_TRACKS.find(t => t.name === n));
+  // Song 1 läuft in Level 1–2, ab Level 3 kommt mit jedem Level-Up ein neuer Song (Schleife über alle 7)
+  const songSeqAt = lvl => Math.max(0, lvl - 2);
+
+  function levelProgress() {
+    const a = threshold(G.level), b = threshold(G.level + 1);
+    return Math.max(0, Math.min(1, (G.score - a) / (b - a)));
+  }
+
+  // Rampen-Helfer für Automationen
+  function automate(param, t0, v0, pts) {
+    param.cancelScheduledValues(t0); param.setValueAtTime(v0, t0);
+    pts.forEach(([t, v, exp]) => exp ? param.exponentialRampToValueAtTime(Math.max(v, 0.0001), t) : param.linearRampToValueAtTime(v, t));
+  }
+
+  // Ein 16tel-Schritt. In Song 1 kommen pro Level Spuren dazu, spätere Songs starten voll.
+  // Beim Songwechsel wird 2 Takte lang überblendet: Der alte Song wird dumpf und leise, beim neuen kommen erst die
+  // Höhen, dann der Bass, und das Schlagzeug wird übergeben. Gleichzeitig gleitet das Tempo hoch.
+  function playStep(step, t, audible = true) {
+    if (G.dropAt !== null && step / 4 >= G.dropAt) {
+      G.musicLevel = G.level; G.dropAt = null;
+      if (audible && !(G.songDropAt !== null && step / 4 >= G.songDropAt)) D.crash(t, false);
+    }
+    if (G.songDropAt !== null && step / 4 >= G.songDropAt) {
+      G.songDropAt = null;
+      const old = decks[G.deck], nw = decks[1 - G.deck];
+      const T = k => timeOfBeat(step / 4 + 4 * k) + G.audioOffset;
+      nw.track = G.songSeq % TRACKS.length; nw.start = step;
+      automate(nw.vol.gain, t, 1, []);
+      automate(nw.drum.gain, t, 0.0001, [[T(1), 0.0001], [T(2), 1]]);
+      automate(nw.tonal.gain, t, 0.0001, [[T(2), 1]]);
+      automate(nw.hp.frequency, t, 1400, [[T(2), 20, true]]); nw.hpLast = 20;
+      automate(nw.lp.frequency, t, 18000, []);
+      automate(nw.duck.gain, t, 1, []);
+      automate(old.tonal.gain, t, 1, [[T(2), 0.0001]]);
+      automate(old.lp.frequency, t, 18000, [[T(2), 350, true]]);
+      automate(old.drum.gain, t, 1, [[T(1), 1], [T(2), 0.0001]]);
+      G.oldDeck = G.deck; G.deck = 1 - G.deck; G.xfadeEnd = step + 32;
+      G.track = nw.track;
+      if (audible) D.crash(t, false);
+      const name = TRACKS[G.track].name;
+      setTimeout(() => { if (G.state === 'play') { songToast(name); updateLvlText(); } }, Math.max(0, (t - actx.currentTime) * 1000));
+    }
+    if (!audible) return;
+    const bl = 60 / G.bpm;
+    const cur = decks[G.deck], st0 = step - cur.start;
+    // Build-up vor dem nächsten Songwechsel: im letzten Drittel des Levels (ab Level 2)
+    const prog = levelProgress();
+    const x = G.level >= 2 && G.songDropAt === null && G.xfadeEnd === null && prog >= 0.65 ? (prog - 0.65) / 0.35 : -1;
+    if (st0 % 16 === 0 && G.xfadeEnd === null) {
+      const target = x > 0 ? 20 + x * x * 600 : 20;
+      cur.hp.frequency.setValueAtTime(cur.hpLast, t); cur.hp.frequency.linearRampToValueAtTime(target, t + bl * 4); cur.hpLast = target;
+      if (x > 0) D.riser(t, bl * 4, 0.03 + 0.07 * x);
+    }
+    playDeck(cur, step, t, true);
+    if (G.xfadeEnd !== null) {
+      if (step < G.xfadeEnd) playDeck(decks[G.oldDeck], step, t, false);
+      else G.xfadeEnd = null;
+    }
+    if (x > 0.6 && st0 % 16 >= 8 && (x > 0.85 || st0 % 2 === 0)) { OUT = cur; D.clap(t, 0.05 + 0.1 * ((st0 % 16) - 8) / 8); }
+  }
+  function playDeck(dk, step, t, isCurrent) {
+    OUT = dk;
+    const tr = TRACKS[dk.track], st = step - dk.start, inBar = st % 16;
+    const bl = 60 / G.bpm, s16 = bl / 4;
+    const lv = G.songSeq === 0 ? Math.min(3, G.musicLevel) : 3;   // Song 1 baut sich auf, spätere Songs starten voll
+    let melOk = lv >= 2 || st >= 64;
+    if (isCurrent && G.xfadeEnd !== null && st < 16) melOk = false;   // neue Melodie erst ab dem 2. Übergangstakt
+    tr.step({ t, st, inBar, ch: tr.chords[Math.floor(st / 16) % 4], bl, s16, lv, mel: melOk ? tr.mel[st % 64] : undefined });
+  }
+  function setMusicVolume(v, fade) {
+    if (!actx || !musicGain) return;
+    const n = actx.currentTime;
+    musicGain.gain.cancelScheduledValues(n);
+    musicGain.gain.setValueAtTime(musicGain.gain.value, n);
+    musicGain.gain.linearRampToValueAtTime(v, n + fade);
+  }
+  function resetMusicFx() {
+    if (!actx) return;
+    const n = actx.currentTime;
+    decks.forEach((d, i) => {
+      automate(d.vol.gain, n, i === 0 ? 1 : 0, []); automate(d.drum.gain, n, 1, []); automate(d.tonal.gain, n, 1, []);
+      automate(d.duck.gain, n, 1, []); automate(d.hp.frequency, n, 20, []); automate(d.lp.frequency, n, 18000, []);
+      d.hpLast = 20; d.track = 0; d.start = 0;
+    });
+    bus.delay.delayTime.setValueAtTime(0.75 * 60 / G.bpm, n); G.delayBpm = G.bpm;
+  }
+
+  // ---------- Layout ----------
+  let W = 0, H = 0, groundY = 0, blockX = 0, stars = [], VIEW_K = 1;
+  // Handy oder Tablet? Dann sparsamere Grafik (Leuchteffekte kosten auf Handys viel Leistung)
+  const isTouch = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  const lowFx = () => settings.fx === 'low' || (settings.fx === 'auto' && isTouch());
+  // Leuchten (shadowBlur) im Sparmodus abschalten – an einer Stelle für das ganze Spiel
+  (() => {
+    const desc = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+    if (!desc) return;
+    Object.defineProperty(ctx, 'shadowBlur', {
+      get() { return desc.get.call(this); },
+      set(v) { desc.set.call(this, lowFx() ? 0 : v); },
+    });
+  })();
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, lowFx() ? 1.5 : 2);
+    const rw = window.innerWidth, rh = window.innerHeight;
+    // Bei kleinen Höhen (Handy quer) wird die ganze Spielwelt verkleinert, damit man genug sieht
+    const k = Math.min(1, rh / 680); VIEW_K = k;
+    W = rw / k; H = rh / k;
+    cv.width = Math.round(rw * dpr); cv.height = Math.round(rh * dpr);
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+    groundY = Math.round(H * 0.66);
+    blockX = Math.round(Math.min(W * 0.26, 320));
+    stars = [];
+    const nStars = lowFx() ? 50 : 110;
+    for (let i = 0; i < nStars; i++) {
+      const layer = i % 3;
+      stars.push({ x: Math.random() * W, y: Math.random() * groundY * 0.95, s: 0.7 + layer * 0.7 + Math.random() * 0.5,
+                   f: 0.03 + layer * 0.07, tw: Math.random() * 6 });
+    }
+  }
+  window.addEventListener('resize', () => { resize(); if (isTouch() && window.innerHeight > window.innerWidth && G.state === 'play') pause(); });
+  resize();
+
+  // ---------- Spielzustand ----------
+  // Alles läuft in "Beats": G.b ist der Beat, der gerade unter dem Block ist.
+  const G = { state: 'menu', t: 0 };
+  let screen = 'menu';
+
+  // G.turns zählt die Ausrichtung in Vierteldrehungen im Uhrzeigersinn. Die Drehrichtung entscheidet nur,
+  // ob ein Tastendruck +1 oder −1 zählt (Einstellung, und der Glücksrad-Effekt "Gegenuhr" kehrt sie um).
+  function bottomColor(k) { return (((2 - k) % 4) + 4) % 4; }
+  const rotDir = () => settings.dir * (G.mod && G.mod.id === 'ccw' ? -1 : 1);
+  const colorOf = s => bottomColor(s.ori);
+  const sx = B => blockX + (B - G.b) * G.ppb;
+
+  // Beat-Uhr (mit Tempowechsel immer zum nächsten Takt)
+  // Tempowechsel: Das Tempo steigt über 2 Takte gleitend an (keine harten Sprünge).
+  function beatRaw(t) {
+    const r = G.ramp;
+    if (!r || t <= r.T0) return G.anchorB + (t - G.anchorT) * G.abpm / 60;
+    if (t < r.T1) { const d = r.b1 - r.b0; return r.B0 + r.R / d * r.b0 * (Math.exp(d * (t - r.T0) / (60 * r.R)) - 1); }
+    return r.B0 + r.R + (t - r.T1) * r.b1 / 60;
+  }
+  function timeRaw(B) {
+    const r = G.ramp;
+    if (!r || B <= r.B0) return G.anchorT + (B - G.anchorB) * 60 / G.abpm;
+    if (B < r.B0 + r.R) { const d = r.b1 - r.b0; return r.T0 + 60 * r.R / d * Math.log(1 + d * (B - r.B0) / (r.R * r.b0)); }
+    return r.T1 + (B - r.B0 - r.R) * 60 / r.b1;
+  }
+  const timeOfBeat = timeRaw;
+  function bpmAt(B) {
+    const r = G.ramp;
+    if (!r || B <= r.B0) return G.abpm;
+    return B < r.B0 + r.R ? r.b0 + (r.b1 - r.b0) * (B - r.B0) / r.R : r.b1;
+  }
+  function startRamp(target) {
+    const B0 = Math.ceil(G.b / 4 + 0.001) * 4;
+    if (G.ramp) { G.nextBpm = target; return B0; }
+    G.nextBpm = 0;
+    const b0 = G.abpm, d = target - b0;
+    if (Math.abs(d) < 0.01) return B0;
+    const T0 = timeRaw(B0), Rb = 8;
+    G.ramp = { B0, T0, b0, b1: target, R: Rb, T1: T0 + 60 * Rb / d * Math.log(target / b0) };
+    return B0;
+  }
+
+  function reset() {
+    const c1 = levelCfg(1);
+    Object.assign(G, {
+      b: 0, bpm: c1.bpm, abpm: c1.bpm, ramp: null, nextBpm: 0, delayBpm: 0, ppb: c1.ppb, pxSpeed: 0, dist: 0, slow: 1,
+      anchorB: 0, anchorT: 0, clockT: 0, audioOffset: 0, useAudio: false, nextStep: 0,
+      level: 1, score: 0, combo: 0, maxCombo: 0, dropAt: null, musicLevel: 1, track: 0, trackStart: 0, songSeq: 0, songDropAt: null, mod: null, grav: 1, jv: 1, physNext: null, genPhys: null, gate: null, forceRunway: false, scoreMul: 1, camRot: 0, announce: null, warp: 1, warpT: -1, blackStart: -10, nextBlack: 0, pendingBanner: false, deck: 0, oldDeck: 1, xfadeEnd: null, y: 0, vy: 0, grounded: true, falling: false,
+      turns: 0, visAngle: 0, rotFrom: 0, rotT: 1, changes: 0, perfects: 0,
+      particles: [], shards: [], trail: [], texts: [], lines: [], shake: 0, flash: 0, timeScale: 1, squash: 0,
+      dieT: 0, overT: 0, reason: '', hidden: false, jumped: false, rotated: false, newRecord: false, shownScore: -1,
+    });
+    WH.phase = 'off';
+    G.tint = RGB[bottomColor(0)].slice();
+    G.segs = [{ b0: -16, len: 20, gap: false, ori: 0 }];   // erster Farbwechsel nach einem Takt
+    G.lastSeg = G.segs[0];
+    fill();
+  }
+
+  function addSeg() {
+    const segs = G.segs, last = segs[segs.length - 1], cfg = levelCfg(G.level);
+    const start = last.b0 + last.len;
+    if (!last.gap && !G.forceRunway && cfg.gap > 0 && G.state === 'play' && Math.random() < cfg.gap && last.len >= 2) {
+      // Loch: 1 Beat, bei kurzen Sprüngen (hohe Schwerkraft) nur ein halber Beat
+      const airB = airSec() * cfg.bpm / 60;
+      segs.push({ b0: start, len: airB - 1 >= 0.5 ? 1 : 0.5, gap: true, ori: last.ori });
+      return;
+    }
+    const pool = cfg.turns.slice();
+    if (last.gap) pool.push(0);
+    const t = pool[Math.floor(Math.random() * pool.length)];
+    let len = cfg.lens[Math.floor(Math.random() * cfg.lens.length)];
+    if (last.gap) len = Math.max(len, 3) + (last.len % 1);   // nach halbem Loch wieder zurück aufs Beat-Raster
+    if (genPhys()[0] < 1) len = Math.max(len, 3);   // Mondgravitation: längere Abschnitte
+    const seg = { b0: start, len, gap: false, ori: (((last.ori + t * settings.dir) % 4) + 4) % 4 };
+    if (G.forceRunway) {   // ruhige Anlaufstrecke direkt hinter dem Effekt-Tor
+      G.forceRunway = false;
+      seg.len = Math.max(seg.len, 4 + Math.ceil(airSec() * cfg.bpm / 60));
+      segs.push(seg); return;
+    }
+    if (G.state === 'play' && !last.gap) {
+      const airB = airSec() * cfg.bpm / 60, r = Math.random();
+      if (cfg.spike && r < cfg.spike) {
+        // Stacheln mitten im Abschnitt, genug Platz zum Landen davor und dahinter
+        seg.spike = 2; seg.len = Math.max(len, Math.ceil(2 + SPIKE_W + airB + 0.3));
+      } else if (cfg.ceil && r < (cfg.spike || 0) + cfg.ceil) {
+        // Hängender Block: 1 Beat breit, mit Abstand zur Landung davor und zum Absprung danach
+        const c0 = airB < 1.7 ? 2 : 3;
+        seg.ceil = [c0, c0 + 1]; seg.len = Math.max(len, c0 + 1 + Math.ceil(airB));
+      }
+    }
+    if (G.state === 'play' && cfg.fog && Math.random() < cfg.fog) seg.fog = true;
+    segs.push(seg);
+  }
+  function fill() {
+    const s = G.segs;
+    while (s[s.length - 1].b0 + s[s.length - 1].len < G.b + (W - blockX) / G.ppb + 8) addSeg();
+    while (s.length > 3 && s[0].b0 + s[0].len < G.b - blockX / G.ppb - 4) s.shift();
+  }
+  function segAt(B) { for (const s of G.segs) if (B >= s.b0 && B < s.b0 + s.len) return s; return null; }
+
+  // ---------- Effekte ----------
+  function burst(x, y, color, n, power = 1) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = (80 + Math.random() * 260) * power;
+      G.particles.push({ x, y, vx: Math.cos(a) * sp - G.pxSpeed * 0.25, vy: Math.sin(a) * sp - 140 * power,
+                         life: 0.45 + Math.random() * 0.45, t: 0, color, s: 2.5 + Math.random() * 4 });
+    }
+  }
+  function confetti() {
+    for (let i = 0; i < 70; i++) {
+      G.particles.push({ x: Math.random() * W, y: -10 - Math.random() * 60, vx: (Math.random() - 0.5) * 120, vy: 80 + Math.random() * 220,
+                         life: 1.4 + Math.random(), t: 0, color: COLORS[i % 4], s: 4 + Math.random() * 4, spin: true });
+    }
+  }
+  function addText(text, color, big = false) { G.texts.push({ x: blockX, y: groundY - SIZE - 20, text, color, t: 0, life: 1.0, big }); }
+  function shatter() {
+    const cy = groundY - SIZE / 2 + G.y, h = SIZE / 2;
+    const corners = [[-h, -h], [h, -h], [h, h], [-h, h]], normals = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const ca = Math.cos(G.visAngle), sa = Math.sin(G.visAngle);
+    for (let i = 0; i < 4; i++) {
+      const nx = normals[i][0] * ca - normals[i][1] * sa, ny = normals[i][0] * sa + normals[i][1] * ca;
+      G.shards.push({ x: blockX, y: cy, vx: nx * 380 + (Math.random() - 0.5) * 120, vy: ny * 380 - 380, a: G.visAngle,
+                      va: (Math.random() - 0.5) * 14, i, p1: corners[i], p2: corners[(i + 1) % 4] });
+    }
+  }
+
+  // ---------- Aktionen ----------
+  function action() {
+    if (G.state !== 'play' || G.falling) return;
+    if (G.grounded) {
+      G.vy = -JUMP_V * G.jv; G.y = -1; G.grounded = false; G.jumped = true; G.squash = -0.7;
+      burst(blockX, groundY, COLORS[bottomColor(G.turns)], 10, 0.8);
+      sfx.jump();
+    } else {
+      G.rotFrom = G.visAngle; G.turns += rotDir(); G.rotT = 0; G.rotated = true;
+      sfx.rotate();
+    }
+  }
+
+  function land(s) {
+    G.y = 0; G.vy = 0; G.grounded = true; G.rotT = 1;
+    if (G.physNext) { G.grav = G.physNext[0]; G.jv = G.physNext[1]; G.physNext = null; }
+    G.visAngle = G.turns * Math.PI / 2;
+    const bc = bottomColor(G.turns);
+    if (colorOf(s) !== bc) { die('color', s); return; }
+    G.squash = 1;
+    burst(blockX, groundY, COLORS[bc], 14, 1);
+    sfx.land();
+    if (s !== G.lastSeg) {
+      G.changes++; G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo);
+      sfx.chime(G.combo);
+      const pts = (2 + Math.floor(G.combo / 5)) * G.scoreMul;
+      if (G.b - s.b0 < 0.3) {
+        G.perfects++; G.score += pts + 5 * G.scoreMul; G.flash = Math.max(G.flash, 0.18);
+        addText('PERFEKT! +' + (pts + 5 * G.scoreMul), COLORS[bc], true); burst(blockX, groundY, '#ffffff', 18, 1.3); sfx.perfect();
+      } else {
+        G.score += pts; addText('+' + pts, COLORS[bc]);
+      }
+      if (G.combo % 10 === 0) {
+        G.texts.push({ x: W / 2, y: groundY - 220, text: 'COMBO ' + G.combo + '!', color: '#ffffff', t: 0, life: 1.2, big: true });
+        G.flash = Math.max(G.flash, 0.3); confetti(); sfx.combo();
+      }
+      const ce = $('combo'); ce.textContent = G.combo >= 2 ? 'Combo ' + G.combo : '';
+      ce.classList.remove('pop'); void ce.offsetWidth; ce.classList.add('pop');
+    }
+    G.lastSeg = s;
+  }
+
+  function die(kind, s) {
+    if (G.state !== 'play') return;
+    G.state = 'dying'; G.dieT = 0; G.timeScale = 0.2; G.slow = 1;
+    const bc = bottomColor(G.turns);
+    G.reason = kind === 'hole' ? 'Du bist in ein Loch gefallen.'
+             : kind === 'spike' ? 'Du bist in die Stacheln gelaufen.'
+             : kind === 'ceil' ? 'Du bist gegen einen hängenden Block gesprungen.'
+             : `Unten war ${NAMES[bc]}, der Boden war ${NAMES[colorOf(s)]}.`;
+    if (kind !== 'hole') { shatter(); G.hidden = true; }
+    if (settings.shake) G.shake = 20;
+    G.flash = 0.55;
+    burst(blockX, groundY - SIZE / 2 + G.y, COLORS[bc], 40, 1.8);
+    setMusicVolume(0, 0.4);
+    sfx.die();
+    const sc = Math.floor(G.score);
+    G.newRecord = sc > best;
+    if (G.newRecord) best = sc;
+    const acc = curAcc();
+    if (acc) {
+      acc.games = (acc.games || 0) + 1; acc.lastPlayed = Date.now();
+      if (G.newRecord) { acc.best = sc; acc.bestLevel = G.level; acc.bestAt = Date.now(); }
+      if (mode === 'online') { saveOSession(); G.submitP = submitOnline(sc, G.level); }
+      else saveAccounts();
+    }
+  }
+
+  function levelUp() {
+    const cfg = levelCfg(G.level);
+    // Tempowechsel erst zum nächsten Takt, damit die Musik sauber bleibt
+    G.dropAt = startRamp(cfg.bpm);
+    updateLvlText();
+    showLevelBanner();
+    if (G.level >= 5) startWheel();   // Glücksrad dreht sich bei jedem Level nebenbei
+    updateModBadge();
+  }
+  function showLevelBanner() {
+    const cfg = levelCfg(G.level), b = $('banner');
+    b.innerHTML = `<h2>Level ${G.level}</h2><h3>${cfg.name} · ${cfg.bpm} BPM</h3><p>${cfg.hint}</p>`;
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+    G.flash = 0.45; confetti(); sfx.level();
+  }
+
+  // ---------- Glücksrad & Effekte ----------
+  const MODS = [
+    { help: 'Der Bildschirm flackert kurz und wird dann für einen Moment komplett schwarz – alle paar Takte. Merk dir, welche Farbe als Nächstes kommt.', id: 'black',  name: 'Blackout', icon: '◐', color: '#2b2f4a', text: '#ffffff', desc: 'Der Bildschirm wird immer wieder kurz schwarz.' },
+    { help: 'Höhere Schwerkraft: Deine Sprünge sind etwas kürzer und flacher, du hast weniger Zeit zum Drehen. Löcher sind dafür nur halb so lang.', id: 'heavy',  name: 'Schwer',   icon: '↓', color: '#ef476f', text: '#ffffff', desc: 'Höhere Schwerkraft: etwas kürzere, flachere Sprünge.' },
+    { help: 'Niedrige Schwerkraft: Du schwebst länger und springst weiter. Die Abschnitte sind etwas länger, damit du nicht drüberfliegst.', id: 'moon',   name: 'Mond',     icon: '☾', color: '#118ab2', text: '#ffffff', desc: 'Niedrige Schwerkraft: Du schwebst lange.' },
+    { help: 'Die ganze Welt klappt um und steht auf dem Kopf. Laufrichtung und Steuerung bleiben gleich – nur dein Kopf muss umdenken.', id: 'flip',   name: 'Kopfüber', icon: '⇅', color: '#ffd166', text: '#10131f', desc: 'Die ganze Welt steht auf dem Kopf.' },
+    { help: 'Die Kamera schwankt hin und her und pumpt im Takt der Musik.', id: 'quake',  name: 'Beben',    icon: '≋', color: '#06d6a0', text: '#10131f', desc: 'Die Kamera wackelt und pumpt im Takt.' },
+    { help: 'Das Glücksfeld: Alle Punkte zählen doppelt – Strecke, Farbwechsel und PERFEKT-Landungen.', id: 'double', name: 'Joker ×2', icon: '★', color: '#9b5de5', text: '#ffffff', desc: 'Glück gehabt: doppelte Punkte!' },
+    { help: 'Der Block dreht sich bei jedem Tastendruck in die andere Richtung. Ein oranger Pfeil am Block erinnert dich daran.', id: 'ccw',    name: 'Gegenuhr', icon: '↺', color: '#f3722c', text: '#ffffff', desc: 'Der Block dreht sich in die andere Richtung.' },
+  ];
+  // Physik für die Strecke, die gerade gebaut wird (hinter einem Effekt-Tor schon die neue)
+  const genPhys = () => G.genPhys || G.physNext || [G.grav, G.jv];
+  const airSec = () => { const [g, j] = genPhys(); return 2 * JUMP_V * j / (GRAVITY * g); };
+  const modPhys = id => id === 'heavy' ? [1.3, 1.08] : id === 'moon' ? [0.62, 0.85] : [1, 1];   // Schwer: etwas sanfter
+  const WH = {};   // Zustand des Rads
+
+  // Neue Schwerkraft gilt erst ab der nächsten Landung, damit ein laufender Sprung nicht plötzlich anders endet
+  function setPhys(grav, jv) {
+    if (G.grounded && !G.falling) { G.grav = grav; G.jv = jv; G.physNext = null; }
+    else G.physNext = [grav, jv];
+  }
+  // Ergebnis vom Rad: Ein leuchtendes Tor erscheint hinter dem sichtbaren Bereich. Wenn der Block hindurchläuft,
+  // startet der Effekt. Die Strecke hinter dem Tor wird schon passend zur neuen Physik gebaut.
+  function placeGate(m) {
+    if (G.gate) activateGate();
+    const edge = G.b + (W - blockX) / G.ppb + 1;
+    let i = G.segs.findIndex(o => o.b0 >= edge);
+    if (i < 0) i = G.segs.length;
+    G.segs.length = Math.max(1, i);
+    const last = G.segs[G.segs.length - 1];
+    G.gate = { b: last.b0 + last.len, mod: m, until: G.level + 1, born: G.t };
+    G.genPhys = modPhys(m.id);
+    G.forceRunway = true;
+    fill();
+    updateModBadge();
+  }
+  function activateGate() {
+    const m = G.gate.mod;
+    G.mod = Object.assign({}, m, { until: G.gate.until });
+    const [g, j] = modPhys(m.id);
+    setPhys(g, j); G.genPhys = null;
+    G.scoreMul = m.id === 'double' ? 2 : 1;
+    G.nextBlack = G.b + 4;
+    G.gate = null;
+    G.flash = Math.max(G.flash, 0.4);
+    burst(blockX, groundY - SIZE, m.color, 36, 1.5);
+    G.texts.push({ x: W / 2, y: groundY - 230, text: m.icon + ' ' + m.name.toUpperCase() + '!', color: m.color, t: 0, life: 1.4, big: true });
+    tone(180, 0.4, 'sawtooth', 0.04, 900);
+    updateModBadge();
+  }
+  function updateModBadge() {
+    const el = $('modBadge');
+    if (G.gate) {
+      const m = G.gate.mod;
+      el.innerHTML = `<b style="background:${m.color};color:${m.text}">${m.icon}</b> Gleich: ${m.name}`;
+      el.classList.add('on'); return;
+    }
+    if (!G.mod) { el.classList.remove('on'); return; }
+    el.innerHTML = `<b style="background:${G.mod.color};color:${G.mod.text}">${G.mod.icon}</b> ${G.mod.name} · bis zum nächsten Level`;
+    el.classList.add('on');
+  }
+
+  function startWheel() {
+    let k; do { k = Math.floor(Math.random() * MODS.length); } while (WH.lastResult === k);
+    const seg = Math.PI * 2 / MODS.length, start = Math.random() * Math.PI * 2;
+    const want = -Math.PI / 2 - (k + 0.2 + Math.random() * 0.6) * seg;
+    const delta = (((want - start) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    Object.assign(WH, { phase: 'intro', t: 0, angle: start, from: start, to: start + Math.PI * 2 * 4 + delta, dur: 2.6,
+                        result: k, lastResult: k, lastIdx: -1, kick: 0 });
+    tone(330, 0.25, 'triangle', 0.035, 880);
+  }
+  const easeOutBack = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  const easeOutQuart = x => 1 - Math.pow(1 - x, 4);
+  const easeInCubic = x => x * x * x;
+  function wheelIndexAt(angle) {
+    const seg = Math.PI * 2 / MODS.length;
+    const local = (((-Math.PI / 2 - angle) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    return Math.floor(local / seg) % MODS.length;
+  }
+  function updateWheel(dt) {
+    if (!WH.phase || WH.phase === 'off') return;
+    WH.t += dt;
+    WH.kick *= Math.pow(0.002, dt);
+    if (WH.phase === 'intro' && WH.t > 0.45) { WH.phase = 'spin'; WH.t = 0; }
+    else if (WH.phase === 'spin') {
+      const x = Math.min(1, WH.t / WH.dur);
+      WH.angle = WH.from + (WH.to - WH.from) * easeOutQuart(x);
+      const idx = wheelIndexAt(WH.angle);
+      if (idx !== WH.lastIdx) { WH.lastIdx = idx; WH.kick = 1; tone(1400 + Math.random() * 200, 0.025, 'square', 0.014); }
+      if (x >= 1) {
+        WH.phase = 'result'; WH.t = 0;
+        const m = MODS[WH.result];
+        placeGate(m);
+        G.warpT = 0;   // Zeitlupe, damit man das Ergebnis lesen kann
+        G.announce = { m, t: 0 };   // groß über dem Block anzeigen
+        tone(420, 0.5, 'sawtooth', 0.025, 140);
+        [784, 988, 1175].forEach((f, i) => tone(f, 0.14, 'triangle', 0.045, null, i * 0.07));
+      }
+    } else if (WH.phase === 'result' && WH.t > 1.5) { WH.phase = 'outro'; WH.t = 0; }
+    else if (WH.phase === 'outro' && WH.t > 0.5) { WH.phase = 'off'; }
+  }
+  function drawWheel() {
+    if (!WH.phase || WH.phase === 'off') return;
+    const n = MODS.length, seg = Math.PI * 2 / n, R = Math.max(52, Math.min(78, W * 0.09));
+    const hudBottom = (document.querySelector('.hud-r').getBoundingClientRect().bottom || 80) / VIEW_K;   // Unterkante der Anzeige oben rechts, in Spiel-Koordinaten
+    let cx = Math.max(R + 16, W - R - 34), cy = Math.max(120, hudBottom + 48) + R;
+    let sc = 1, alpha = 1;
+    if (WH.phase === 'intro') sc = Math.max(0.01, easeOutBack(Math.min(1, WH.t / 0.45)));
+    if (WH.phase === 'result') sc = 1 + 0.08 * Math.sin(WH.t * 14) * Math.exp(-WH.t * 3);
+    if (WH.phase === 'outro') {   // fliegt verkleinert zur Anzeige oben links
+      const x = easeInCubic(Math.min(1, WH.t / 0.5));
+      cx += (40 - cx) * x; cy += (140 - cy) * x; sc = 1 - 0.85 * x; alpha = 1 - x * 0.7;
+    }
+    const m = MODS[WH.result];
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // Titel
+    if (WH.phase !== 'outro') {
+      ctx.font = '900 13px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.shadowColor = '#ffd166'; ctx.shadowBlur = 12;
+      ctx.fillText('GLÜCKSRAD', cx, cy - R * sc - 30); ctx.shadowBlur = 0;
+    }
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
+    ctx.save(); ctx.shadowColor = WH.phase === 'spin' || WH.phase === 'intro' ? '#ffd166' : m.color; ctx.shadowBlur = 26;
+    ctx.beginPath(); ctx.arc(0, 0, R + 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(21,26,48,0.92)'; ctx.fill(); ctx.restore();
+    for (let i = 0; i < n; i++) {
+      const a0 = WH.angle + i * seg, mm = MODS[i];
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a0, a0 + seg); ctx.closePath();
+      ctx.fillStyle = mm.color; ctx.fill();
+      if ((WH.phase === 'result' || WH.phase === 'outro') && i !== WH.result) { ctx.fillStyle = 'rgba(5,6,14,0.6)'; ctx.fill(); }
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.save(); ctx.rotate(a0 + seg / 2); ctx.translate(R * 0.64, 0); ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = mm.text; ctx.font = '900 ' + Math.round(R * 0.3) + 'px system-ui, sans-serif'; ctx.fillText(mm.icon, 0, 0);
+      ctx.restore();
+    }
+    const bulbs = 16, speed = WH.phase === 'spin' ? 16 : 4;
+    for (let i = 0; i < bulbs; i++) {
+      const a = i / bulbs * Math.PI * 2, on = (Math.floor(G.t * speed) + i) % 3 === 0;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * (R + 5), Math.sin(a) * (R + 5), 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = on ? '#fff6d6' : 'rgba(255,255,255,0.2)'; ctx.fill();
+    }
+    const hub = R * 0.24;
+    ctx.beginPath(); ctx.arc(0, 0, hub, 0, Math.PI * 2); ctx.fillStyle = '#1b1f38'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '900 ' + Math.round(hub * 1.1) + 'px system-ui, sans-serif';
+    ctx.fillText(WH.phase === 'result' || WH.phase === 'outro' ? m.icon : '?', 0, 1);
+    ctx.restore();
+    // Zeiger
+    if (WH.phase !== 'outro') {
+      ctx.save(); ctx.translate(cx, cy - (R + 9) * sc); ctx.rotate(-0.5 * WH.kick);
+      ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.moveTo(-9, -12); ctx.lineTo(9, -12); ctx.lineTo(0, 9); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // Ergebnis
+    if (WH.phase === 'result') {
+      const a = Math.min(1, WH.t * 4), tx = Math.min(cx, W - 140);
+      ctx.globalAlpha = a;
+      ctx.font = '900 20px system-ui, sans-serif'; ctx.shadowColor = m.color; ctx.shadowBlur = 16; ctx.fillStyle = '#fff';
+      ctx.fillText(m.icon + ' ' + m.name.toUpperCase(), tx, cy + R + 30);
+      ctx.shadowBlur = 0; ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText('Startet am leuchtenden Tor', tx, cy + R + 52);
+    }
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // Ergebnis vom Glücksrad groß über dem Block
+  function drawAnnounce() {
+    if (!G.announce) return;
+    const { m, t } = G.announce, life = 2.8;
+    const pop = easeOutBack(Math.min(1, t / 0.35)), alpha = t < life - 0.4 ? 1 : Math.max(0, (life - t) / 0.4);
+    const big = Math.round(Math.max(34, Math.min(64, W * 0.05)));
+    ctx.save();
+    ctx.font = `900 ${big}px system-ui, sans-serif`;
+    const title = m.name.toUpperCase(), tw = ctx.measureText(title).width;
+    ctx.font = '600 18px system-ui, sans-serif';
+    const dw = ctx.measureText(m.desc).width;
+    const r = big * 0.55, gap = 14;
+    const half = Math.max(tw + 2 * r + gap, dw) / 2 + 30;
+    // über dem höchsten Sprungpunkt, links neben dem Glücksrad, rechts von der Effekt-Anzeige
+    const cx = Math.max(half + 170, Math.min(W - half - 250, Math.max(blockX + 60, W * 0.4)));
+    const cy = Math.max(100 + big * 0.9, groundY - SIZE - 175 - big * 0.1 - 70);
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy + (1 - Math.min(1, t / 0.35)) * 30); ctx.scale(pop, pop);
+    // Hintergrund-Plakette
+    ctx.fillStyle = 'rgba(10,12,28,0.72)'; ctx.strokeStyle = m.color; ctx.lineWidth = 3;
+    ctx.shadowColor = m.color; ctx.shadowBlur = 30;
+    const bw = half * 2, bh = big + 70;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-bw / 2, -big * 0.9, bw, bh, 18) : ctx.rect(-bw / 2, -big * 0.9, bw, bh); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // Symbol im farbigen Kreis + Name
+    const x0 = -(tw + 2 * r + gap) / 2 + r;
+    ctx.beginPath(); ctx.arc(x0, -big * 0.15, r, 0, Math.PI * 2); ctx.fillStyle = m.color; ctx.fill();
+    ctx.fillStyle = m.text; ctx.font = `900 ${Math.round(r * 1.2)}px system-ui, sans-serif`; ctx.fillText(m.icon, x0, -big * 0.12);
+    ctx.font = `900 ${big}px system-ui, sans-serif`; ctx.fillStyle = '#fff';
+    ctx.shadowColor = m.color; ctx.shadowBlur = 22;
+    ctx.fillText(title, x0 + r + gap + tw / 2, -big * 0.12);
+    ctx.shadowBlur = 0;
+    ctx.font = '600 18px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillText(m.desc, 0, big * 0.62);
+    ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = m.color;
+    ctx.fillText('Startet hinter dem leuchtenden Tor', 0, big * 0.62 + 24);
+    ctx.restore();
+  }
+
+  // Effekt-Tor in der Welt
+  function drawGate() {
+    if (!G.gate) return;
+    const x = sx(G.gate.b), m = G.gate.mod;
+    if (x < -80 || x > W + 80) return;
+    const top = groundY - 300, wobble = Math.sin(G.t * 6) * 3;
+    const g = ctx.createLinearGradient(x - 26, 0, x + 26, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, m.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.15 * Math.sin(G.t * 8);
+    ctx.fillStyle = g; ctx.fillRect(x - 26, top, 52, groundY - top);
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = m.color; ctx.shadowBlur = 24;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 2, top, 4, groundY - top);
+    // aufsteigende Funken
+    for (let k = 0; k < 8; k++) {
+      const yy = groundY - ((G.t * 120 + k * 40) % (groundY - top));
+      ctx.globalAlpha = 0.8; ctx.fillStyle = m.color;
+      ctx.fillRect(x - 8 + ((k * 37) % 16), yy, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+    // Symbol oben
+    ctx.beginPath(); ctx.arc(x, top - 6 + wobble, 22, 0, Math.PI * 2); ctx.fillStyle = m.color; ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = m.text; ctx.font = '900 22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(m.icon, x, top - 5 + wobble);
+    ctx.font = '800 12px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(m.name, x, top + 30 + wobble);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+
+  // ---------- Screens ----------
+  function updateLvlText() {
+    const cfg = levelCfg(G.level);
+    $('lvl').textContent = `Level ${G.level} · ${cfg.name} · ${cfg.bpm} BPM · ♫ ${TRACKS[G.track].name}`;
+  }
+  function songToast(name) {
+    const el = $('songToast');
+    el.textContent = '♫ Jetzt läuft: ' + name;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  }
+  function show(id) {
+    screen = id;
+    document.querySelectorAll('.screen').forEach(el => el.classList.toggle('active', el.id === id));
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+  // ---------- Anmeldung & Bestenliste ----------
+  let loginMode = 'login', boardFrom = 'menu';
+  function setLoginMode(m) {
+    loginMode = m;
+    $('login').classList.toggle('reg', m === 'reg');
+    $('tabLogin').classList.toggle('on', m === 'login'); $('tabReg').classList.toggle('on', m === 'reg');
+    $('loginBtn').textContent = m === 'reg' ? 'Konto erstellen' : 'Anmelden';
+    $('loginErr').textContent = '';
+  }
+  function knownNames() {
+    if (mode === 'online') return onlineNames();
+    return Object.values(accounts).sort((a, b) => (b.lastPlayed || b.created || 0) - (a.lastPlayed || a.created || 0)).map(a => a.name);
+  }
+  function renderKnown() {
+    const box = $('knownPlayers'); box.innerHTML = '';
+    knownNames().slice(0, 12).forEach(n => {
+      const c = document.createElement('button'); c.className = 'chip'; c.type = 'button';
+      c.dataset.act = 'pick'; c.dataset.name = n; c.textContent = n; box.appendChild(c);
+    });
+  }
+  function renderNetStatus() {
+    const st = $('netStat'), link = $('modeLink');
+    if (mode === 'online') {
+      st.textContent = online.reachable ? '● Online – eine Bestenliste für alle Spieler' : '● Server nicht erreichbar';
+      st.className = 'netstat ' + (online.reachable ? 'on' : 'off');
+      $('loginNote').textContent = 'Mit deinem Konto kannst du dich auf jedem Gerät anmelden. Passwort: mindestens 6 Zeichen.';
+      link.textContent = 'Lieber offline spielen (nur dieses Gerät)'; link.style.display = '';
+    } else {
+      st.textContent = online.ok ? '● Offline – Bestenliste nur auf diesem Gerät' : ''; st.className = 'netstat off';
+      $('loginNote').textContent = 'Konten und Highscores werden auf diesem Gerät gespeichert. Bitte kein echtes Passwort verwenden.';
+      link.textContent = 'Online spielen (Bestenliste für alle)'; link.style.display = online.ok ? '' : 'none';
+    }
+  }
+  function setMode(m) {
+    mode = m; try { localStorage.setItem(MODE_KEY, m); } catch (e) {}
+    best = curAcc() ? (curAcc().best || 0) : 0;
+  }
+  function showLogin(msg) {
+    G.state = 'menu'; setLoginMode(knownNames().length ? 'login' : 'reg'); renderKnown(); renderNetStatus();
+    if (msg) $('loginErr').textContent = msg;
+    $('inPw').value = ''; $('inPw2').value = '';
+    $('hud').classList.add('hidden');
+    show('login'); setTimeout(() => $('inName').focus(), 60);
+  }
+  async function submitLogin(e) {
+    e.preventDefault();
+    const name = $('inName').value.trim().replace(/\s+/g, ' '), pw = $('inPw').value, err = t => { $('loginErr').textContent = t; };
+    if (name.length < 2 || name.length > 16) return err('Der Name muss 2 bis 16 Zeichen haben.');
+    if (!/^[\p{L}\p{N} _.\-]+$/u.test(name)) return err('Erlaubt sind Buchstaben, Zahlen, Leerzeichen und _ . -');
+    if (mode === 'online') {
+      $('loginBtn').disabled = true;
+      try { await submitOnlineLogin(name, pw, err); } finally { $('loginBtn').disabled = false; }
+      return;
+    }
+    if (pw.length < 3) return err('Das Passwort braucht mindestens 3 Zeichen.');
+    const k = keyOf(name);
+    $('loginBtn').disabled = true;
+    try {
+      if (loginMode === 'reg') {
+        if (accounts[k]) return err('Den Namen gibt es schon. Melde dich an oder nimm einen anderen.');
+        if (pw !== $('inPw2').value) return err('Die Passwörter stimmen nicht überein.');
+        const salt = randHex();
+        accounts[k] = { name, salt, hash: await hashPw(pw, salt), best: 0, bestLevel: 0, games: 0, created: Date.now() };
+        saveAccounts();
+      } else {
+        const a = accounts[k];
+        if (!a) return err('Den Namen gibt es noch nicht. Leg ein neues Konto an.');
+        if (await hashPw(pw, a.salt) !== a.hash) return err('Falsches Passwort.');
+      }
+      login(k);
+    } finally { $('loginBtn').disabled = false; }
+  }
+  async function submitOnlineLogin(name, pw, err) {
+    if (pw.length < 6) return err('Online-Passwörter brauchen mindestens 6 Zeichen.');
+    if (loginMode === 'reg' && pw !== $('inPw2').value) return err('Die Passwörter stimmen nicht überein.');
+    err('Verbinde …');
+    try {
+      const email = await emailFor(name);
+      if (loginMode === 'reg') {
+        const esc = name.replace(/[\\%_]/g, m => '\\' + m);
+        const ex = await api('/rest/v1/scores?select=id&username=ilike.' + encodeURIComponent(esc));
+        if (ex && ex.length) return err('Den Namen gibt es schon. Melde dich an oder nimm einen anderen.');
+        const d = await api('/auth/v1/signup', { method: 'POST', auth: false, body: { email, password: pw, data: { username: name } } });
+        if (!d || !d.access_token) return err('Konto angelegt, aber der Server verlangt eine E-Mail-Bestätigung. In Supabase muss „Confirm email“ aus sein.');
+        takeSession(d);
+      } else {
+        takeSession(await api('/auth/v1/token?grant_type=password', { method: 'POST', auth: false, body: { email, password: pw } }));
+      }
+      await loadProfile();
+      rememberName(online.profile.name);
+      $('loginErr').textContent = '';
+      loginDone();
+    } catch (e) {
+      online.session = null; online.profile = null; saveOSession();
+      if (e.offline) { renderNetStatus(); return err('Keine Verbindung zum Server. Prüfe dein Internet oder spiele offline.'); }
+      const m = (e.message || '').toLowerCase();
+      if (m.includes('invalid login') || m.includes('invalid_credentials')) return err('Name oder Passwort falsch.');
+      if (m.includes('already') || m.includes('database error') || m.includes('duplicate')) return err('Den Namen gibt es schon. Melde dich an oder nimm einen anderen.');
+      if (m.includes('password')) return err('Das Passwort ist zu schwach. Nimm mindestens 6 Zeichen.');
+      if (m.includes('rate') || e.status === 429) return err('Zu viele Versuche. Warte kurz und probier es nochmal.');
+      return err('Fehler beim Anmelden: ' + e.message);
+    }
+  }
+  function loginDone() {
+    best = curAcc() ? (curAcc().best || 0) : 0;
+    $('inPw').value = ''; $('inPw2').value = '';
+    sfx.level(); G.flash = 0.3; confetti();
+    refreshMenu(); show('menu');
+    if (mode === 'online') flushPending().then(refreshMenu);
+  }
+  function login(k) {
+    player = k; try { localStorage.setItem(SES_KEY, k); } catch (e) {}
+    loginDone();
+  }
+  function logout() {
+    if (mode === 'online') {
+      if (online.session) api('/auth/v1/logout', { method: 'POST' }).catch(() => {});
+      online.session = null; online.profile = null; saveOSession();
+    } else { player = null; try { localStorage.removeItem(SES_KEY); } catch (e) {} }
+    best = 0; $('inName').value = ''; showLogin();
+  }
+  function ranking() {
+    return Object.entries(accounts).map(([k, a]) => Object.assign({ k }, a))
+      .sort((a, b) => (b.best || 0) - (a.best || 0) || (a.bestAt || 0) - (b.bestAt || 0));
+  }
+  function refreshMenu() {
+    const a = curAcc();
+    best = a ? Math.max(best, a.best || 0) : 0;
+    $('menuName').textContent = a ? a.name + (mode === 'online' ? ' (online)' : '') : '';
+    $('menuBest').textContent = best;
+    const setTop = (top, where) => { $('menuAllTime').textContent = top && top.best > 0 ? `Allzeit-Rekord ${where}: ${top.name} mit ${top.best}` : ''; };
+    if (mode === 'online') {
+      setTop(online.list && online.list[0], 'aller Spieler');
+      fetchBoard().then(l => setTop(l[0], 'aller Spieler')).catch(() => {});
+    } else setTop(ranking()[0], 'auf diesem Gerät');
+  }
+  function showBoard(from) {
+    boardFrom = from;
+    if (mode === 'online') {
+      renderBoard(online.list || [], online.session && online.session.uid, online.list ? '' : 'Lädt …');
+      show('board');
+      flushPending().then(fetchBoard)
+        .then(l => { if (screen === 'board') renderBoard(l, online.session && online.session.uid, ''); })
+        .catch(e => { if (screen === 'board') renderBoard(online.list || [], online.session && online.session.uid, 'Server gerade nicht erreichbar.'); });
+      return;
+    }
+    renderBoard(ranking(), player, '');
+    show('board');
+    const meRow = $('boardTable').querySelector('.row.me'); if (meRow) meRow.scrollIntoView({ block: 'nearest' });
+  }
+  function renderBoard(list, meKey, note) {
+    $('boardTitle').innerHTML = '';
+    $('boardTitle').append('Bestenliste');
+    const sm = document.createElement('small'); sm.textContent = mode === 'online' ? 'Alle Spieler weltweit (Top 100)' : 'Alle Spieler auf diesem Gerät';
+    $('boardTitle').appendChild(sm);
+    const me = list.findIndex(r => r.k === meKey), a = curAcc();
+    const st = $('myStats'); st.innerHTML = '';
+    [[best, 'Dein Rekord'], [me >= 0 ? me + 1 + '.' : (mode === 'online' && best > 0 ? '100+' : '–'), 'Dein Platz'], [a ? a.games || 0 : 0, 'Spiele']].forEach(([v, l]) => {
+      const d = document.createElement('div'); d.className = 'stat';
+      const b = document.createElement('b'); b.textContent = v; const sp = document.createElement('span'); sp.textContent = l;
+      d.append(b, sp); st.appendChild(d);
+    });
+    const tb = $('boardTable'); tb.innerHTML = '';
+    const head = document.createElement('div'); head.className = 'row head';
+    ['Platz', 'Name', 'Level', 'Punkte'].forEach((t, i) => { const c = document.createElement('div'); c.textContent = t; if (i >= 2) c.style.textAlign = 'right'; head.appendChild(c); });
+    tb.appendChild(head);
+    if (note || !list.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = note || 'Noch keine Spieler.'; tb.appendChild(e); }
+    const medals = ['#ffd166', '#c9d1e8', '#e09f6b'];
+    list.forEach((r, i) => {
+      const row = document.createElement('div'); row.className = 'row' + (r.k === meKey ? ' me' : '');
+      const rk = document.createElement('div'); rk.className = 'rk';
+      if (i < 3 && r.best > 0) { const m = document.createElement('span'); m.className = 'medal'; m.style.background = medals[i]; m.textContent = i + 1; rk.appendChild(m); }
+      else rk.textContent = i + 1;
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = r.name;
+      const lv = document.createElement('div'); lv.className = 'lv'; lv.textContent = r.bestLevel ? 'Lvl ' + r.bestLevel : '–';
+      const sc = document.createElement('div'); sc.className = 'sc'; sc.textContent = r.best || 0;
+      row.append(rk, nm, lv, sc); tb.appendChild(row);
+    });
+  }
+  $('loginForm').addEventListener('submit', submitLogin);
+
+  function startGame() {
+    if (!curAcc()) { showLogin(); return; }
+    reset(); G.state = 'play'; show(null);
+    $('hud').classList.remove('hidden'); $('banner').classList.remove('show');
+    const c1 = levelCfg(1);
+    updateLvlText();
+    const a = audio();
+    G.useAudio = !!(a && settings.music);
+    if (G.useAudio) { G.audioOffset = a.currentTime + 0.1; G.clockT = -0.1; G.b = beatRaw(G.clockT); resetMusicFx(); setMusicVolume(0.6, 0.05); }
+    $('combo').textContent = ''; updateModBadge();
+  }
+  function toMenu() {
+    reset(); G.state = 'menu'; show('menu'); setMusicVolume(0, 0.2);
+    $('hud').classList.add('hidden'); $('banner').classList.remove('show');
+    if (!curAcc()) { showLogin(); return; }
+    refreshMenu();
+  }
+  function pause() {
+    if (G.state !== 'play') return;
+    G.state = 'paused'; show('pause');
+    if (actx && actx.state === 'running') actx.suspend();
+  }
+  function resume() {
+    if (G.state !== 'paused') return;
+    G.state = 'play'; show(null);
+    if (actx) actx.resume();
+  }
+  function gameOver() {
+    G.state = 'over'; G.overT = 0;
+    $('ovReason').textContent = G.reason;
+    $('ovRecord').classList.toggle('on', G.newRecord);
+    $('ovLevel').textContent = G.level;
+    $('ovBest').textContent = best;
+    if (mode === 'online') {
+      $('ovRank').textContent = 'Platz wird geladen …';
+      (G.submitP || Promise.resolve()).then(fetchBoard).then(l => {
+        const pos = l.findIndex(r => r.k === (online.session && online.session.uid));
+        $('ovRank').textContent = pos >= 0 ? `Platz ${pos + 1} weltweit` + (pos === 0 && best > 0 ? ' – Allzeit-Rekord!' : '') : 'Noch nicht in den Top 100 – weiter so!';
+        $('ovBest').textContent = best = Math.max(best, online.profile ? online.profile.best : 0);
+      }).catch(() => { $('ovRank').textContent = 'Offline – dein Ergebnis wird später hochgeladen.'; });
+    } else {
+      const list = ranking(), pos = list.findIndex(r => r.k === player);
+      $('ovRank').textContent = pos >= 0 ? `Platz ${pos + 1} von ${list.length} auf diesem Gerät` + (pos === 0 && best > 0 ? ' – Allzeit-Rekord!' : '') : '';
+    }
+    $('ovChanges').textContent = G.maxCombo;
+    $('ovPerfect').textContent = G.perfects;
+    $('ovScore').textContent = '0';
+    $('hud').classList.add('hidden');
+    show('over');
+  }
+  function renderSettings() {
+    $('optMusic').textContent = 'Musik: ' + (settings.music ? 'An' : 'Aus');
+    $('optSound').textContent = 'Soundeffekte: ' + (settings.sound ? 'An' : 'Aus');
+    $('optSymbols').textContent = 'Farbsymbole (● ▲ ◆ ✚): ' + (settings.symbols ? 'An' : 'Aus');
+    $('optDir').textContent = 'Drehrichtung: ' + (settings.dir === 1 ? 'Uhrzeigersinn' : 'Gegen den Uhrzeigersinn');
+    $('optShake').textContent = 'Bildschirmwackeln: ' + (settings.shake ? 'An' : 'Aus');
+    $('optFx').textContent = 'Grafik: ' + ({ auto: 'Automatisch', high: 'Hoch', low: 'Sparsam' }[settings.fx]) + (settings.fx === 'auto' ? (lowFx() ? ' (sparsam)' : ' (hoch)') : '');
+  }
+
+  // Anleitung: alle Glücksrad-Effekte auflisten
+  MODS.forEach(m => {
+    const d = document.createElement('div'); d.className = 'moditem';
+    const i = document.createElement('i'); i.textContent = m.icon; i.style.background = m.color; i.style.color = m.text;
+    const t = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = m.name;
+    const sp = document.createElement('span'); sp.textContent = m.help || m.desc;
+    t.append(b, sp); d.append(i, t); $('modList').appendChild(d);
+  });
+  ['title', 'title2'].forEach(id => 'BLOCKJUMP'.split('').forEach((ch, i) => {
+    const sp = document.createElement('span');
+    sp.textContent = ch; sp.style.color = COLORS[i % 4]; sp.style.animationDelay = (i * 0.1) + 's';
+    $(id).appendChild(sp);
+  }));
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const act = btn.dataset.act;
+    if (act !== 'pause') sfx.click();
+    if (act === 'play') startGame();
+    else if (act === 'menu') { if (G.state === 'menu') show('menu'); else toMenu(); }
+    else if (act === 'howto') show('howto');
+    else if (act === 'board') showBoard('menu');
+    else if (act === 'boardOver') showBoard('over');
+    else if (act === 'boardBack') show(boardFrom);
+    else if (act === 'logout') logout();
+    else if (act === 'tabLogin') setLoginMode('login');
+    else if (act === 'tabReg') setLoginMode('reg');
+    else if (act === 'pick') { setLoginMode('login'); $('inName').value = btn.dataset.name || ''; $('inPw').focus(); return; }
+    else if (act === 'toggleMode') { setMode(mode === 'online' ? 'local' : 'online'); if (curAcc()) { refreshMenu(); show('menu'); } else showLogin(); return; }
+    else if (act === 'settings') { renderSettings(); $('optReset').textContent = 'Meinen Rekord löschen'; $('optReset').dataset.confirm = ''; show('settings'); }
+    else if (act === 'pause') pause();
+    else if (act === 'resume') resume();
+    else if (act === 'toggleMusic') { settings.music = !settings.music; saveSettings(); renderSettings(); }
+    else if (act === 'toggleSound') { settings.sound = !settings.sound; saveSettings(); renderSettings(); }
+    else if (act === 'toggleSymbols') { settings.symbols = !settings.symbols; saveSettings(); renderSettings(); }
+    else if (act === 'toggleDir') { settings.dir *= -1; saveSettings(); renderSettings(); reset(); }
+    else if (act === 'toggleShake') { settings.shake = !settings.shake; saveSettings(); renderSettings(); }
+    else if (act === 'toggleFx') { settings.fx = { auto: 'high', high: 'low', low: 'auto' }[settings.fx] || 'auto'; saveSettings(); renderSettings(); resize(); }
+    else if (act === 'install') { doInstall(); }
+    else if (act === 'resetBest') {
+      if (mode === 'online') { btn.textContent = 'Online-Rekorde kann man nicht löschen'; return; }
+      if (btn.dataset.confirm === '1') {
+        best = 0; const a = curAcc(); if (a) { a.best = 0; a.bestLevel = 0; delete a.bestAt; saveAccounts(); }
+        btn.textContent = 'Rekord gelöscht'; btn.dataset.confirm = ''; refreshMenu();
+      }
+      else { btn.textContent = 'Wirklich löschen? Nochmal klicken'; btn.dataset.confirm = '1'; }
+    }
+    btn.blur();
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.target && e.target.tagName === 'INPUT') return;   // Tippen im Login nicht abfangen
+    const k = e.key, space = e.code === 'Space' || k === ' ';
+    if (space || k === 'Enter') e.preventDefault();
+    if (e.repeat) return;
+    const pauseKey = k === 'Escape' || k === 'p' || k === 'P';
+    if (G.state === 'play') { if (space) action(); else if (pauseKey) pause(); }
+    else if (G.state === 'paused') { if (space || pauseKey) resume(); }
+    else if (G.state === 'over') {
+      if (screen === 'board') { if (k === 'Escape' || space) show('over'); }
+      else if ((space || k === 'Enter') && G.overT > 0.5) startGame(); else if (k === 'Escape') toMenu();
+    }
+    else if (G.state === 'menu') {
+      if (screen === 'menu' && (space || k === 'Enter')) startGame();
+      else if (k === 'Escape' && screen === 'board') show(boardFrom);
+      else if (k === 'Escape' && screen !== 'menu' && screen !== 'login') show('menu');
+    }
+  });
+  window.addEventListener('keyup', e => { if (e.code === 'Space' && !(e.target && e.target.tagName === 'INPUT')) e.preventDefault(); });
+  cv.addEventListener('pointerdown', e => { if (G.state === 'play') { e.preventDefault(); action(); } });
+  window.addEventListener('blur', () => pause());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+  // iOS unterbricht den Ton manchmal (Anruf, App-Wechsel): bei der nächsten Berührung wieder starten
+  window.addEventListener('pointerdown', () => { if (actx && actx.state !== 'running' && G.state !== 'paused') actx.resume(); }, true);
+
+  // ---------- Update ----------
+  // Zeitlupe: gleichmäßig runter, kurz halten, gleichmäßig wieder hoch. Musik und Spiel werden gemeinsam langsamer.
+  const WARP_MIN = 0.4, WARP_DOWN = 0.6, WARP_HOLD = 1.4, WARP_UP = 0.9;
+  const smooth = x => x * x * (3 - 2 * x);
+  function updateWarp(rdt) {
+    if (G.warpT < 0) { G.warp = 1; return; }
+    const was = G.warpT; G.warpT += rdt;
+    const t = G.warpT;
+    let k;
+    if (t < WARP_DOWN) k = smooth(t / WARP_DOWN);
+    else if (t < WARP_DOWN + WARP_HOLD) k = 1;
+    else if (t < WARP_DOWN + WARP_HOLD + WARP_UP) k = 1 - smooth((t - WARP_DOWN - WARP_HOLD) / WARP_UP);
+    else { G.warp = 1; G.warpT = -1; return; }
+    if (was < WARP_DOWN + WARP_HOLD && t >= WARP_DOWN + WARP_HOLD) tone(140, 0.6, 'sawtooth', 0.025, 420);
+    G.warp = 1 - (1 - WARP_MIN) * k;
+  }
+  function updateEffects(dt) {
+    for (const p of G.particles) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.spin ? 120 : 1300) * dt; }
+    G.particles = G.particles.filter(p => p.t < p.life);
+    for (const s of G.shards) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 1700 * dt; s.a += s.va * dt; }
+    for (const t of G.trail) { t.t += dt; t.x -= G.pxSpeed * dt; }
+    G.trail = G.trail.filter(t => t.t < t.life);
+    for (const t of G.texts) { t.t += dt; t.y -= 60 * dt; }
+    G.texts = G.texts.filter(t => t.t < t.life);
+    for (const l of G.lines) l.x -= l.v * dt;
+    G.lines = G.lines.filter(l => l.x + l.len > 0);
+    G.shake = Math.max(0, G.shake - 50 * dt);
+    G.flash = Math.max(0, G.flash - 1.6 * dt);
+    G.squash += (0 - G.squash) * Math.min(1, dt * 12);
+  }
+  function lerpTint(idx, dt) { const tg = RGB[idx]; for (let i = 0; i < 3; i++) G.tint[i] += (tg[i] - G.tint[i]) * Math.min(1, dt * 4); }
+
+  function scheduleMusic() {
+    if (!G.useAudio || !actx || !settings.music || actx.state !== 'running') return;
+    const ahead = G.b + 0.15 * G.bpm / 60;
+    while (G.nextStep / 4 < ahead) {
+      const at = timeOfBeat(G.nextStep / 4) + G.audioOffset;
+      playStep(G.nextStep, at, at >= actx.currentTime - 0.01);
+      G.nextStep++;
+    }
+  }
+
+  function update(rdt) {
+    G.t += rdt;
+    G.timeScale += (1 - G.timeScale) * Math.min(1, rdt * (G.state === 'dying' ? 0.9 : 4));
+    const dt = rdt * G.timeScale * (G.state === 'play' ? G.warp : 1);
+    if (G.state !== 'paused') updateEffects(dt);
+
+    if (G.state === 'menu') {
+      // Demo im Hintergrund: Block hüpft und dreht sich
+      G.pxSpeed = G.ppb * G.bpm / 60 * 0.55;
+      G.b += rdt * G.bpm / 60 * 0.55; G.dist += G.pxSpeed * rdt;
+      const P = 1.4, ph = (G.t % P) / P, n = Math.floor(G.t / P);
+      const air = ph < 0.55, hop = Math.min(1, ph / 0.55);
+      G.y = air ? -Math.sin(hop * Math.PI) * 110 : 0;
+      const e = air ? Math.min(1, hop * 1.5) : 1, ee = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+      G.visAngle = settings.dir * (n + ee) * Math.PI / 2;
+      G.turns = settings.dir * (n + (ee >= 1 ? 1 : 0));
+      lerpTint(bottomColor(G.turns), rdt);
+      fill();
+      return;
+    }
+    if (G.state === 'paused') return;
+    if (G.state === 'over' || G.state === 'dying') {
+      if (G.state === 'over') {
+        G.overT += rdt;
+        const sc = Math.floor(G.score), shown = Math.floor(sc * Math.min(1, Math.sqrt(G.overT / 0.8)));
+        if (shown !== G.shownScore) { G.shownScore = shown; $('ovScore').textContent = shown; }
+      } else {
+        G.dieT += rdt;
+        if (G.falling) { G.vy += GRAVITY * dt; G.y += G.vy * dt; }
+        if (G.dieT > 0.9) gameOver();
+      }
+      G.slow *= Math.pow(G.state === 'dying' ? 0.15 : 0.3, dt);
+      G.pxSpeed = G.ppb * G.bpm / 60 * G.slow;
+      G.b += dt * G.bpm / 60 * G.slow; G.dist += G.pxSpeed * dt;
+      return;
+    }
+
+    // ----- Spiel läuft: Zeit kommt von der Audio-Uhr, damit alles im Takt bleibt -----
+    updateWarp(rdt);
+    let t = G.clockT + rdt * G.warp;
+    if (G.useAudio && actx) {
+      if (actx.state === 'running' && G.warpT < 0) {
+        const err = (actx.currentTime - G.audioOffset) - t;
+        t = Math.abs(err) > 0.12 ? actx.currentTime - G.audioOffset : t + err * 0.08;
+      } else G.audioOffset = actx.currentTime - t;
+    }
+    const pdt = Math.min(0.05, Math.max(0, t - G.clockT));
+    G.clockT = Math.max(G.clockT, t);
+    t = G.clockT;
+    if (G.ramp && t >= G.ramp.T1) {
+      const r = G.ramp; G.anchorT = r.T1; G.anchorB = r.B0 + r.R; G.abpm = r.b1; G.ramp = null;
+      if (G.nextBpm) startRamp(G.nextBpm);
+    }
+    const nb = beatRaw(t), db = Math.max(0, nb - G.b);
+    G.b = nb;
+    G.bpm = bpmAt(G.b);
+    if (actx && bus.delay && Math.abs(G.bpm - G.delayBpm) > 0.5) {
+      G.delayBpm = G.bpm; bus.delay.delayTime.setTargetAtTime(0.75 * 60 / G.bpm, actx.currentTime, 0.05);
+    }
+
+    const cfg = levelCfg(G.level);
+    G.ppb += (cfg.ppb - G.ppb) * Math.min(1, pdt * 1.5);
+    G.pxSpeed = G.ppb * G.bpm / 60;
+    G.dist += G.pxSpeed * pdt;
+    G.score += db * 1.7 * G.scoreMul;
+    while (G.score >= threshold(G.level + 1)) { G.level++; levelUp(); }
+    const seq = songSeqAt(G.level);
+    if (seq > G.songSeq && G.songDropAt === null) { G.songSeq = seq; G.songDropAt = Math.ceil(G.b / 4 + 0.001) * 4; }
+
+    const target = G.turns * Math.PI / 2;
+    if (G.rotT < 1) {
+      G.rotT = Math.min(1, G.rotT + pdt / ROT_TIME);
+      const e = 1 - Math.pow(1 - G.rotT, 3);
+      G.visAngle = G.rotFrom + (target - G.rotFrom) * e;
+    } else G.visAngle = target;
+
+    // Trägt der Boden? Normal zählt die Blockmitte. Über einem Loch reicht es, wenn die Vorderkante
+    // schon minimal auf der nächsten Platte ist.
+    let s = segAt(G.b);
+    if (s && s.gap) { const f = segAt(G.b + (SIZE / 2) / G.ppb); if (f && !f.gap) s = f; }
+    if (G.falling) {
+      G.vy += GRAVITY * G.grav * pdt; G.y += G.vy * pdt;
+      if (G.y > 45) die('hole');
+    } else if (!G.grounded) {
+      G.vy += GRAVITY * G.grav * pdt; G.y += G.vy * pdt;
+      G.trail.push({ x: blockX, y: groundY - SIZE / 2 + G.y, a: G.visAngle, t: 0, life: 0.22 });
+      if (G.y >= 0 && G.vy > 0) { if (s && !s.gap) land(s); else G.falling = true; }
+    } else {
+      if (!s || s.gap) { G.grounded = false; G.falling = true; G.vy = 80; }
+      else if (colorOf(s) !== bottomColor(G.turns)) die('color', s);
+    }
+    if (G.state === 'play' && !G.falling) {
+      const half = (SIZE / 2) * 0.7 / G.ppb;   // etwas verzeihende Trefferbox
+      for (const o of G.segs) {
+        if (o.gap || o.b0 > G.b + 2 || o.b0 + o.len < G.b - 2) continue;
+        if (o.spike !== undefined) {
+          const c0 = o.b0 + o.spike, c1 = c0 + SPIKE_W;
+          if (G.b + half > c0 && G.b - half < c1 && G.y > -20) { die('spike', o); break; }
+        }
+        if (o.ceil) {
+          const c0 = o.b0 + o.ceil[0], c1 = o.b0 + o.ceil[1];
+          if (G.b + half > c0 && G.b - half < c1 && G.y < -14) { die('ceil', o); break; }
+        }
+      }
+    }
+    // Glücksrad dreht sich nebenbei, Tor aktiviert den Effekt
+    updateWheel(rdt);
+    if (G.announce) { G.announce.t += rdt; if (G.announce.t > 2.8) G.announce = null; }
+    // Effekt startet erst, wenn der Block hinter dem Tor zum ersten Mal auf dem Boden steht
+    if (G.gate && G.b >= G.gate.b) G.gate.passed = true;
+    if (G.gate && G.gate.passed && G.grounded && !G.falling) activateGate();
+    if (G.mod && G.mod.id === 'black' && G.b >= G.nextBlack) { G.blackStart = G.t; G.nextBlack = G.b + 4 + Math.random() * 4; }
+    G.camRot += ((G.mod && G.mod.id === 'flip' ? Math.PI : 0) - G.camRot) * Math.min(1, pdt * 3);
+    // Nebel lichtet sich kurz vor dem Abschnitt
+    const reveal = airSec() * G.bpm / 60 + 0.7;
+    for (const o of G.segs) if (o.fog && !o.revealed && o.b0 - G.b < reveal) {
+      o.revealed = true; o.revealT = G.t;
+      burst(Math.min(W - 20, sx(o.b0) + 40), groundY, COLORS[colorOf(o)], 12, 0.7);
+    }
+    if (s && !s.gap) lerpTint(colorOf(s), pdt);
+
+    if (G.pxSpeed > 380 && Math.random() < (G.pxSpeed - 360) / 700) {
+      G.lines.push({ x: W + 20, y: Math.random() * groundY * 0.95, len: 40 + Math.random() * 120, v: G.pxSpeed * (2 + Math.random()) });
+    }
+    scheduleMusic();
+    fill();
+    updateHud(s);
+  }
+
+  function updateHud(s) {
+    const sc = Math.floor(G.score);
+    if (sc !== G.shownScore) { G.shownScore = sc; $('score').textContent = sc; }
+    const bc = bottomColor(G.turns), now = $('swNow'), nx = $('swNext');
+    now.style.background = COLORS[bc]; now.textContent = settings.symbols ? SYMS[bc] : '';
+    let next = null;
+    if (s) { const i = G.segs.indexOf(s); for (let j = i + 1; j < G.segs.length; j++) if (!G.segs[j].gap) { next = G.segs[j]; break; } }
+    if (next && next.fog && !next.revealed) { nx.style.background = '#4a5070'; nx.textContent = '?'; }
+    else if (next) { const c = colorOf(next); nx.style.background = COLORS[c]; nx.textContent = settings.symbols ? SYMS[c] : ''; }
+    const a = threshold(G.level), b = threshold(G.level + 1);
+    $('progIn').style.width = Math.min(100, ((G.score - a) / (b - a)) * 100) + '%';
+  }
+
+  // ---------- Zeichnen ----------
+  function drawSym(i, x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (i === 0) ctx.arc(x, y, r, 0, Math.PI * 2);
+    else if (i === 1) { ctx.moveTo(x, y - r * 1.1); ctx.lineTo(x + r * 1.05, y + r * 0.75); ctx.lineTo(x - r * 1.05, y + r * 0.75); }
+    else if (i === 2) { ctx.moveTo(x, y - r * 1.15); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 1.15); ctx.lineTo(x - r, y); }
+    else { const w = r * 0.42; ctx.rect(x - r, y - w, r * 2, w * 2); ctx.rect(x - w, y - r, w * 2, r * 2); }
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ---------- Zerbröselnder Boden ----------
+  const TILE_W = 30;
+  // Ab hier verliert der Boden den Halt: im goldenen Schnitt zwischen linkem Rand und Block (näher am Rand)
+  const CUT_X = () => (blockX - SIZE / 2) * 0.382;
+  const hash = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
+  function drawFallingTiles(s, ci, x, w, nFall) {
+    const speed = Math.max(G.pxSpeed || 0, 120), seed = s.b0 * 7.31;
+    if (!s.fallen) s.fallen = 0;
+    for (let i = 0; i < nFall; i++) {
+      const tx = x + i * TILE_W, tw = Math.min(TILE_W, x + w - tx);
+      if (tw <= 1) continue;
+      const h1 = hash(seed, i), h2 = hash(i, seed + 3), h3 = hash(seed + 9, i + 1);
+      const d = (CUT_X() - (tx + TILE_W)) - h1 * 26;   // kleine zufällige Verzögerung je Kachel
+      // Staubwolke, wenn eine Kachel losbricht
+      if (i >= s.fallen && (G.state === 'play' || G.state === 'menu')) {
+        s.fallen = i + 1;
+        for (let k = 0; k < 3; k++) G.particles.push({ x: tx + tw / 2, y: groundY + 4, vx: (Math.random() - 0.5) * 80 - 40, vy: -Math.random() * 90,
+          life: 0.4 + Math.random() * 0.3, t: 0, color: COLORS[ci], s: 2 + Math.random() * 3 });
+      }
+      let y = 0, rot = 0, dx = 0, alpha = 1;
+      if (d < 0) { y = Math.sin(G.t * 60 + i) * 0.8; }   // kurzes Wackeln vor dem Absturz
+      else {
+        const t = d / speed;
+        y = 950 * t * t + 30 * t; rot = (h2 - 0.5) * 5 * t; dx = (h3 - 0.5) * 40 * t;
+        alpha = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
+      }
+      if (alpha <= 0 || groundY + y > H + 60) continue;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(tx + tw / 2 + dx, groundY + 20 + y); ctx.rotate(rot);
+      ctx.fillStyle = rgba(ci, 0.3); ctx.fillRect(-tw / 2 + 1, -6, tw - 2, 34);         // Bruchstück
+      ctx.fillStyle = COLORS[ci]; ctx.fillRect(-tw / 2 + 1, -20, tw - 2, 14);         // leuchtende Oberkante
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillRect(-tw / 2 + 1, -20, tw - 2, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-tw / 2 + 1, 26, tw - 2, 2);
+      ctx.restore();
+    }
+  }
+
+  function drawBlock(cx, cy, angle, alpha = 1, sq = 0, glow = 0) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy + SIZE / 2);
+    ctx.scale(1 + 0.2 * sq, 1 - 0.2 * sq);
+    ctx.translate(0, -SIZE / 2);
+    ctx.rotate(angle);
+    const h = SIZE / 2, inn = SIZE * 0.2;
+    if (glow > 0) {
+      ctx.shadowColor = COLORS[bottomColor(G.turns)]; ctx.shadowBlur = glow;
+      ctx.fillStyle = '#1b1f33'; ctx.fillRect(-h, -h, SIZE, SIZE);
+      ctx.shadowBlur = 0;
+    }
+    const sides = [
+      [[-h, -h], [h, -h], [inn, -inn], [-inn, -inn]],
+      [[h, -h], [h, h], [inn, inn], [inn, -inn]],
+      [[h, h], [-h, h], [-inn, inn], [inn, inn]],
+      [[-h, h], [-h, -h], [-inn, -inn], [-inn, inn]],
+    ];
+    sides.forEach((p, i) => {
+      ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+      for (let j = 1; j < 4; j++) ctx.lineTo(p[j][0], p[j][1]);
+      ctx.closePath(); ctx.fillStyle = COLORS[i]; ctx.fill();
+    });
+    if (settings.symbols) {
+      const d = h * 0.6, pos = [[0, -d], [d, 0], [0, d], [-d, 0]];
+      pos.forEach((p, i) => drawSym(i, p[0], p[1], 5, 'rgba(0,0,0,0.5)'));
+    }
+    ctx.fillStyle = '#1b1f33'; ctx.fillRect(-inn, -inn, inn * 2, inn * 2);
+    const gl = ctx.createLinearGradient(-h, -h, h, h);
+    gl.addColorStop(0, 'rgba(255,255,255,0.22)'); gl.addColorStop(0.5, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gl; ctx.fillRect(-h, -h, SIZE, SIZE);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(-h, -h, SIZE, SIZE);
+    ctx.restore();
+  }
+
+  function draw() {
+    const frac = G.b - Math.floor(G.b);
+    const pulse = G.state === 'play' || G.state === 'menu' ? Math.pow(1 - frac, 4) * (Math.floor(G.b) % 4 === 0 ? 1 : 0.6) : 0;
+
+    ctx.save();
+    if (G.shake > 0) ctx.translate((Math.random() - 0.5) * G.shake, (Math.random() - 0.5) * G.shake);
+    // Kamera: Kopfüber (Drehung um 180°) und Beben (Wackeln + Pumpen im Takt)
+    const quake = G.mod && G.mod.id === 'quake' && G.state === 'play';
+    const sway = quake ? Math.sin(G.t * 2.1) * 0.045 + Math.sin(G.t * 5.3) * 0.012 : 0;
+    const zoom = quake ? 1 + 0.05 * pulse : 1;
+    if (G.camRot !== 0 || quake) {
+      // Kopfüber = vertikal spiegeln (die Welt klappt um, die Laufrichtung bleibt gleich)
+      ctx.translate(W / 2, H / 2); ctx.rotate(sway); ctx.scale(zoom, zoom * Math.cos(G.camRot)); ctx.translate(-W / 2, -H / 2);
+    }
+
+    // Hintergrund mit Farbschimmer, der im Takt pulsiert
+    ctx.fillStyle = '#090b16'; ctx.fillRect(-W, -H, W * 3, H * 3);
+    const [r, g, b] = G.tint;
+    const rg = ctx.createRadialGradient(blockX, groundY, 10, blockX, groundY, Math.max(W, H) * (0.85 + 0.08 * pulse));
+    rg.addColorStop(0, `rgba(${r | 0},${g | 0},${b | 0},${0.2 + 0.12 * pulse})`); rg.addColorStop(1, 'rgba(9,11,22,0)');
+    ctx.fillStyle = rg; ctx.fillRect(-W, -H, W * 3, H * 3);
+
+    ctx.fillStyle = '#fff';
+    for (const s of stars) {
+      const x = (((s.x - G.dist * s.f) % W) + W) % W;
+      ctx.globalAlpha = Math.min(1, 0.3 + 0.3 * Math.sin(G.t * 2 + s.tw) + 0.3 * pulse);
+      ctx.fillRect(x, s.y, s.s, s.s);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const l of G.lines) { ctx.moveTo(l.x, l.y); ctx.lineTo(l.x + l.len, l.y); }
+    ctx.stroke();
+
+    // Retro-Gitter
+    const top = groundY + 14, vp = W / 2, sp = 70, off = G.dist % sp;
+    ctx.strokeStyle = `rgba(${r | 0},${g | 0},${b | 0},${0.14 + 0.12 * pulse})`; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = -off - sp * 12; x < W + sp * 12; x += sp) { ctx.moveTo(x, top); ctx.lineTo(vp + (x - vp) * 4, H + 200); }
+    for (let i = 1; i < 12; i++) { const yy = top + Math.pow(i / 10, 2) * (H - top); if (yy > H) break; ctx.moveTo(0, yy); ctx.lineTo(W, yy); }
+    ctx.stroke();
+
+    // Löcher
+    for (const s of G.segs) {
+      if (!s.gap) continue;
+      const x = sx(s.b0), w = s.len * G.ppb; if (x > W || x + w < 0) continue;
+      const pg = ctx.createLinearGradient(0, groundY, 0, H);
+      pg.addColorStop(0, '#000'); pg.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = pg; ctx.fillRect(x, groundY, w, H - groundY);
+    }
+
+    if (G.falling && !G.hidden) drawBlock(blockX, groundY - SIZE / 2 + G.y, G.visAngle, 1, 0, 20);
+
+    // Boden mit Beat-Markierungen und Symbolen
+    for (const s of G.segs) {
+      if (s.gap) continue;
+      const x = sx(s.b0), w = s.len * G.ppb; if (x > W || x + w < 0) continue;
+      if (s.fog && !s.revealed) {
+        ctx.fillStyle = 'rgba(120,128,160,0.18)'; ctx.fillRect(x + 1, groundY, w - 2, 90);
+        ctx.fillStyle = '#4a5070'; ctx.fillRect(x + 1, groundY, w - 2, 14);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '800 12px system-ui, sans-serif'; ctx.textAlign = 'center';
+        for (let B = Math.ceil(s.b0); B + 0.5 < s.b0 + s.len; B++) ctx.fillText('?', sx(B) + G.ppb / 2, groundY + 12);
+        ctx.fillStyle = 'rgba(180,190,220,0.08)';   // Nebelschwaden
+        for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(x + w * (0.25 + k * 0.25), groundY - 10, w * 0.3, 26, 0, 0, Math.PI * 2); ctx.fill(); }
+        continue;
+      }
+      const ci = colorOf(s);
+      // Hinter dem Block zerbröselt der Boden: Kacheln lösen sich nacheinander und fallen
+      const nFall = Math.max(0, Math.min(Math.ceil(w / TILE_W), Math.floor((CUT_X() - x) / TILE_W)));
+      if (nFall > 0) drawFallingTiles(s, ci, x, w, nFall);
+      const keep = x + nFall * TILE_W;
+      if (keep >= x + w) continue;
+      ctx.save(); ctx.beginPath(); ctx.rect(keep, -H, W * 3, H * 3); ctx.clip();
+      const fg = ctx.createLinearGradient(0, groundY, 0, groundY + 110);
+      fg.addColorStop(0, rgba(ci, 0.35 + 0.15 * pulse)); fg.addColorStop(1, rgba(ci, 0));
+      ctx.fillStyle = fg; ctx.fillRect(x + 1, groundY, w - 2, 110);
+      ctx.save(); ctx.shadowColor = COLORS[ci]; ctx.shadowBlur = 16 + 20 * pulse;
+      ctx.fillStyle = COLORS[ci]; ctx.fillRect(x + 1, groundY, w - 2, 14);
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillRect(x + 1, groundY, w - 2, 2);
+      for (let B = Math.ceil(s.b0); B < s.b0 + s.len; B++) {
+        const bx = sx(B);
+        if (bx < -20 || bx > W + 20) continue;
+        if (B > s.b0) { ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(bx - 1, groundY + 2, 2, 12); }
+        if (settings.symbols && B + 0.5 < s.b0 + s.len) drawSym(ci, bx + G.ppb / 2, groundY + 7.5, 4, 'rgba(0,0,0,0.42)');
+      }
+      if (s.revealed && G.t - s.revealT < 0.4) {   // Aufblitzen, wenn der Nebel weg ist
+        ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (G.t - s.revealT) / 0.4)})`; ctx.fillRect(x + 1, groundY - 2, w - 2, 18);
+      }
+      if (s.spike !== undefined) {
+        const x0 = sx(s.b0 + s.spike), ww = SPIKE_W * G.ppb, n = 3, sw = ww / n;
+        ctx.save(); ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 14 + 10 * pulse;
+        ctx.fillStyle = '#f1f3ff';
+        ctx.beginPath();
+        for (let k = 0; k < n; k++) { ctx.moveTo(x0 + k * sw, groundY); ctx.lineTo(x0 + k * sw + sw / 2, groundY - 24); ctx.lineTo(x0 + (k + 1) * sw, groundY); }
+        ctx.fill(); ctx.restore();
+        ctx.fillStyle = '#ff4d6d';
+        ctx.beginPath();
+        for (let k = 0; k < n; k++) { ctx.moveTo(x0 + k * sw + sw * 0.3, groundY); ctx.lineTo(x0 + k * sw + sw / 2, groundY - 10); ctx.lineTo(x0 + k * sw + sw * 0.7, groundY); }
+        ctx.fill();
+      }
+      if (s.ceil) {
+        ctx.restore(); ctx.save();   // hängende Blöcke zerbröseln nicht
+        const x0 = sx(s.b0 + s.ceil[0]), ww = (s.ceil[1] - s.ceil[0]) * G.ppb, bottom = groundY - SIZE - 16;
+        ctx.fillStyle = 'rgba(255,77,109,0.08)'; ctx.fillRect(x0, 0, ww, bottom);   // Warnschimmer
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x0 + ww / 2, 0); ctx.lineTo(x0 + ww / 2, bottom - 70); ctx.stroke();   // Aufhängung
+        ctx.save(); ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 18 + 10 * pulse;
+        ctx.fillStyle = '#2a2f4a'; ctx.fillRect(x0, bottom - 70, ww, 70);
+        ctx.restore();
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, bottom - 14, ww, 14); ctx.clip();
+        for (let k = -20, i = 0; k < ww + 20; k += 20, i++) {
+          ctx.fillStyle = i % 2 ? '#ffd166' : '#1b1f33';
+          ctx.beginPath(); ctx.moveTo(x0 + k, bottom); ctx.lineTo(x0 + k + 10, bottom - 14); ctx.lineTo(x0 + k + 30, bottom - 14); ctx.lineTo(x0 + k + 20, bottom); ctx.fill();
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    drawGate();
+    for (const t of G.trail) drawBlock(t.x, t.y, t.a, 0.3 * (1 - t.t / t.life), 0, 0);
+    if (!G.falling && !G.hidden) {
+      const k = Math.max(0.2, 1 + G.y / 380);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(blockX, groundY + 3, SIZE * 0.55 * k, 6 * k, 0, 0, Math.PI * 2); ctx.fill();
+      drawBlock(blockX, groundY - SIZE / 2 + G.y, G.visAngle, 1, G.squash, 24 + 16 * pulse);
+      if (G.mod && G.mod.id === 'ccw' && G.state === 'play') {   // kreisender Pfeil zeigt die umgekehrte Drehrichtung
+        const cy = groundY - SIZE / 2 + G.y, a = -G.t * 3;
+        ctx.save(); ctx.translate(blockX, cy); ctx.strokeStyle = 'rgba(243,114,44,0.75)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, SIZE * 0.78, a, a + Math.PI * 1.2); ctx.stroke();
+        const ex = Math.cos(a) * SIZE * 0.78, ey = Math.sin(a) * SIZE * 0.78;
+        ctx.translate(ex, ey); ctx.rotate(a - Math.PI / 2 + Math.PI);
+        ctx.fillStyle = 'rgba(243,114,44,0.9)'; ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.lineTo(0, 10); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    for (const s of G.shards) {
+      ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.a);
+      ctx.shadowColor = COLORS[s.i]; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s.p1[0], s.p1[1]); ctx.lineTo(s.p2[0], s.p2[1]); ctx.closePath();
+      ctx.fillStyle = COLORS[s.i]; ctx.fill(); ctx.restore();
+    }
+
+    for (const p of G.particles) {
+      ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+      ctx.fillStyle = p.color;
+      if (p.spin) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.t * 8 + p.s); ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
+      else ctx.fillRect(p.x, p.y, p.s, p.s);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.textAlign = 'center';
+    for (const t of G.texts) {
+      const a = 1 - t.t / t.life, sc = t.big ? 1 + 0.3 * Math.max(0, 1 - t.t * 6) : 1;
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(t.x, t.y); ctx.scale(sc, sc);
+      ctx.font = (t.big ? '900 26px' : '800 20px') + ' system-ui, sans-serif';
+      ctx.shadowColor = t.color; ctx.shadowBlur = 16; ctx.fillStyle = t.color;
+      ctx.fillText(t.text, 0, 0); ctx.restore();
+    }
+
+    if (G.state === 'play' && G.level === 1 && (!G.jumped || !G.rotated)) {
+      const msg = !G.jumped ? 'Leertaste / Tippen = Springen' : 'In der Luft nochmal drücken = Drehen';
+      ctx.globalAlpha = 0.65 + 0.35 * Math.sin(G.t * 5);
+      ctx.font = '700 18px system-ui, sans-serif'; ctx.fillStyle = '#fff';
+      ctx.fillText(msg, Math.max(blockX + 60, 200), groundY - 170);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+
+    // Blackout: kurzes Flackern, dann schwarz, dann wieder hell
+    if (G.mod && G.mod.id === 'black' && G.state === 'play') {
+      const bt = G.t - G.blackStart;
+      let a = 0;
+      if (bt < 0.16) a = Math.floor(bt / 0.04) % 2 ? 0.85 : 0;
+      else if (bt < 0.46) a = 0.97;   // 0,3 s komplett schwarz
+      else if (bt < 0.64) a = 0.97 * (1 - (bt - 0.46) / 0.18);
+      if (a > 0) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, W, H); }
+    }
+    if (G.warp < 1 && G.state === 'play') { ctx.fillStyle = `rgba(8,10,28,${0.3 * (1 - G.warp) / (1 - WARP_MIN)})`; ctx.fillRect(0, 0, W, H); }
+    if (G.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${G.flash * 0.45})`; ctx.fillRect(0, 0, W, H); }
+    if (G.state === 'play') { drawWheel(); drawAnnounce(); }
+  }
+
+  // ---------- Start ----------
+  // ---------- App installieren (PWA) ----------
+  let installEvt = null;
+  const standalone = () => (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) || navigator.standalone;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!standalone()) $('installBtn').style.display = ''; });
+  window.addEventListener('appinstalled', () => { installEvt = null; $('installBtn').style.display = 'none'; $('installHint').classList.remove('on'); });
+  if (isIOS() && !standalone() && location.protocol === 'https:') $('installBtn').style.display = '';
+  async function doInstall() {
+    if (installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; $('installBtn').style.display = 'none'; }
+    else $('installHint').classList.toggle('on');
+  }
+
+  renderSettings();
+  if (mode === 'online') {
+    // Gespeicherte Online-Anmeldung prüfen; ohne Server automatisch offline
+    if (online.profile) { refreshMenu(); show('menu'); } else showLogin();
+    (async () => {
+      try {
+        await api('/rest/v1/scores?select=id&limit=1');
+        if (online.session && await ensureFresh()) { await loadProfile(); await flushPending(); if (screen === 'menu') refreshMenu(); }
+        else if (online.profile) { online.profile = null; saveOSession(); showLogin(); }
+      } catch (e) {
+        if (e.offline && !online.profile) { setMode('local'); if (curAcc()) { refreshMenu(); show('menu'); } else showLogin('Server nicht erreichbar – Offline-Modus.'); }
+        else if (screen === 'login') renderNetStatus();
+      }
+    })();
+  } else if (curAcc()) refreshMenu(); else showLogin();
+  reset();
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
