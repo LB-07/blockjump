@@ -310,7 +310,7 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const cv = $('c'), ctx = cv.getContext('2d');
+  const cv = $('c'), ctx = cv.getContext('2d', { alpha: false });   // Hintergrund ist immer deckend: spart Überblenden beim Anzeigen
 
   // ---------- Konstanten ----------
   const COLORS = ['#ef476f', '#ffd166', '#06d6a0', '#118ab2'];   // Seiten: oben, rechts, unten, links
@@ -851,8 +851,12 @@
   // ---------- Layout ----------
   let W = 0, H = 0, groundY = 0, blockX = 0, stars = [], VIEW_K = 1;
   // Handy oder Tablet? Dann sparsamere Grafik (Leuchteffekte kosten auf Handys viel Leistung)
-  const isTouch = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
-  const lowFx = () => settings.fx === 'low' || (settings.fx === 'auto' && isTouch());
+  // Einmal abfragen und merken (matchMedia wird sonst hunderte Male pro Bild aufgerufen)
+  const touchMQ = window.matchMedia ? matchMedia('(pointer: coarse)') : null;
+  let TOUCH = !!(touchMQ && touchMQ.matches);
+  if (touchMQ && touchMQ.addEventListener) touchMQ.addEventListener('change', e => { TOUCH = e.matches; });
+  const isTouch = () => TOUCH;
+  const lowFx = () => settings.fx === 'low' || (settings.fx === 'auto' && TOUCH);
   // Leuchten (shadowBlur) im Sparmodus abschalten – an einer Stelle für das ganze Spiel
   (() => {
     const desc = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
@@ -862,7 +866,19 @@
       set(v) { desc.set.call(this, lowFx() ? 0 : v); },
     });
   })();
+  // Unterkante der Anzeige oben rechts – nur gelegentlich messen statt jedes Bild
+  let hudBottomCache = 0, hudBottomT = -1;
+  function hudBottomPx() {
+    const now = performance.now();
+    if (!hudBottomCache || now - hudBottomT > 1000) {
+      const r = document.querySelector('.hud-r').getBoundingClientRect().bottom;
+      if (r > 0) hudBottomCache = r;
+      hudBottomT = now;
+    }
+    return hudBottomCache || 80;
+  }
   function resize() {
+    hudBottomCache = 0;
     const dpr = Math.min(window.devicePixelRatio || 1, lowFx() ? 1.5 : 2);
     const rw = window.innerWidth, rh = window.innerHeight;
     // Einheitlicher Bildausschnitt: Die Welt wird so skaliert, dass auf jedem Gerät ungefähr
@@ -1220,7 +1236,7 @@
   function drawWheel() {
     if (!WH.phase || WH.phase === 'off') return;
     const n = MODS.length, seg = Math.PI * 2 / n, R = Math.max(52, Math.min(78, W * 0.09));
-    const hudBottom = (document.querySelector('.hud-r').getBoundingClientRect().bottom || 80) / VIEW_K;   // Unterkante der Anzeige oben rechts, in Spiel-Koordinaten
+    const hudBottom = hudBottomPx() / VIEW_K;   // Unterkante der Anzeige oben rechts, in Spiel-Koordinaten
     let cx = Math.max(R + 16, W - R - 34), cy = Math.max(120, hudBottom + 48) + R;
     let sc = 1, alpha = 1;
     if (WH.phase === 'intro') sc = Math.max(0.01, easeOutBack(Math.min(1, WH.t / 0.45)));
@@ -1716,7 +1732,8 @@
 
   function scheduleMusic() {
     if (!G.useAudio || !actx || !settings.music || actx.state !== 'running') return;
-    const ahead = G.b + 0.15 * G.bpm / 60;
+    // Etwas weiter vorausplanen: Ein langsames Bild kann so keine Note mehr verschlucken (Klang bleibt gleich)
+    const ahead = G.b + (TOUCH ? 0.25 : 0.15) * G.bpm / 60;
     while (G.nextStep / 4 < ahead) {
       const at = timeOfBeat(G.nextStep / 4) + G.audioOffset;
       playStep(G.nextStep, at, at >= actx.currentTime - 0.01);
@@ -1853,17 +1870,25 @@
     updateHud(s);
   }
 
+  // Anzeige nur anfassen, wenn sich wirklich etwas ändert (sonst berechnet der Browser jedes Bild das Layout neu)
+  const hudCache = {};
+  function setHud(key, el, bg, txt) {
+    const v = bg + '|' + txt;
+    if (hudCache[key] === v) return;
+    hudCache[key] = v; el.style.background = bg; el.textContent = txt;
+  }
   function updateHud(s) {
     const sc = Math.floor(G.score);
     if (sc !== G.shownScore) { G.shownScore = sc; $('score').textContent = sc; }
-    const bc = bottomColor(G.turns), now = $('swNow'), nx = $('swNext');
-    now.style.background = COLORS[bc]; now.textContent = settings.symbols ? SYMS[bc] : '';
+    const bc = bottomColor(G.turns);
+    setHud('now', $('swNow'), COLORS[bc], settings.symbols ? SYMS[bc] : '');
     let next = null;
     if (s) { const i = G.segs.indexOf(s); for (let j = i + 1; j < G.segs.length; j++) if (!G.segs[j].gap) { next = G.segs[j]; break; } }
-    if (next && next.fog && !next.revealed) { nx.style.background = '#4a5070'; nx.textContent = '?'; }
-    else if (next) { const c = colorOf(next); nx.style.background = COLORS[c]; nx.textContent = settings.symbols ? SYMS[c] : ''; }
+    if (next && next.fog && !next.revealed) setHud('next', $('swNext'), '#4a5070', '?');
+    else if (next) { const c = colorOf(next); setHud('next', $('swNext'), COLORS[c], settings.symbols ? SYMS[c] : ''); }
     const a = threshold(G.level), b = threshold(G.level + 1);
-    $('progIn').style.width = Math.min(100, ((G.score - a) / (b - a)) * 100) + '%';
+    const pw = (Math.round(Math.min(100, ((G.score - a) / (b - a)) * 100) * 4) / 4) + '%';
+    if (hudCache.prog !== pw) { hudCache.prog = pw; $('progIn').style.width = pw; }
   }
 
   // ---------- Zeichnen ----------
