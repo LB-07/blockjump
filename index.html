@@ -24,7 +24,11 @@
     background:#090b16; text-align:center; padding:30px; font-size:18px; font-weight:700; }
   #rotate .phone { width:46px; height:78px; border:4px solid var(--text); border-radius:10px; animation:rot 2s ease-in-out infinite; }
   @keyframes rot { 0%,20% { transform:rotate(0); } 50%,80% { transform:rotate(-90deg); } 100% { transform:rotate(0); } }
-  @media (orientation: portrait) and (pointer: coarse) { #rotate { display:flex; } }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display:flex; } body.portraitOk #rotate { display:none; } }
+  #rotate .rbtn { font:inherit; font-size:17px; padding:12px 22px; border-radius:12px; border:0; background:linear-gradient(135deg,#ff3d7f,#7a5cff); color:#fff; cursor:pointer; }
+  #rotate .rlink { font:inherit; font-size:14px; font-weight:600; background:none; border:0; color:var(--text); opacity:.7; text-decoration:underline; cursor:pointer; }
+  #rotate .rtip { font-size:13px; font-weight:500; opacity:.7; max-width:300px; line-height:1.4; }
+  @media (pointer: coarse) { .keysDesk { display:none; } }
   .installhint { display:none; font-size:13px; opacity:.8; margin:4px 0 0; }
   .installhint.on { display:block; }
 
@@ -182,7 +186,10 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="rotate"><div class="phone"></div>Bitte dreh dein Handy ins Querformat</div>
+<div id="rotate"><div class="phone"></div>Bitte dreh dein Handy ins Querformat
+  <button class="rbtn" id="forceLand">Im Querformat starten</button>
+  <div class="rtip">Dreht sich nichts? Schalte in den Schnelleinstellungen „Automatisch drehen“ ein (iPhone: Hochformatsperre im Kontrollzentrum aus).</div>
+  <button class="rlink" id="portraitOk">Trotzdem hochkant spielen</button></div>
 <div class="vignette"></div>
 
 <div id="hud" class="hidden">
@@ -239,7 +246,7 @@
   <button class="btn" data-act="settings">Einstellungen</button>
   <p class="best">Dein Rekord: <b id="menuBest">0</b></p>
   <p class="alltime" id="menuAllTime"></p>
-  <p class="keys"><kbd>Leertaste</kbd> zum Starten · mit Ton spielen!</p>
+  <p class="keys keysDesk"><kbd>Leertaste</kbd> zum Starten · mit Ton spielen!</p>
 </div></div>
 
 <div class="screen dim" id="howto"><div class="panel">
@@ -297,7 +304,7 @@
   <button class="btn primary" data-act="play">Nochmal</button>
   <button class="btn" data-act="boardOver">Bestenliste</button>
   <button class="btn" data-act="menu">Hauptmenü</button>
-  <p class="keys"><kbd>Leertaste</kbd> neue Runde · <kbd>Esc</kbd> Menü</p>
+  <p class="keys keysDesk"><kbd>Leertaste</kbd> neue Runde · <kbd>Esc</kbd> Menü</p>
 </div></div>
 
 <script>
@@ -858,12 +865,16 @@
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, lowFx() ? 1.5 : 2);
     const rw = window.innerWidth, rh = window.innerHeight;
-    // Bei kleinen Höhen (Handy quer) wird die ganze Spielwelt verkleinert, damit man genug sieht
-    const k = Math.min(1, rh / 680); VIEW_K = k;
+    // Einheitlicher Bildausschnitt: Die Welt wird so skaliert, dass auf jedem Gerät ungefähr
+    // gleich viel Strecke zu sehen ist (Breite ≈ VIEW_W, Höhe ≈ VIEW_H), egal ob Handy oder Laptop.
+    const VIEW_W = 1200, VIEW_H = 620, MIN_H = 480;
+    let k = Math.max(rh / VIEW_H, rw / VIEW_W);   // füllt den Bildschirm, breite Geräte zoomen auf die Breite
+    k = Math.min(k, rh / MIN_H);                   // aber nie so weit, dass zu wenig Höhe bleibt
+    VIEW_K = k;
     W = rw / k; H = rh / k;
     cv.width = Math.round(rw * dpr); cv.height = Math.round(rh * dpr);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
-    groundY = Math.round(H * 0.66);
+    groundY = Math.round(Math.max(H * 0.66, Math.min(H * 0.74, H - 140)));
     blockX = Math.round(Math.min(W * 0.26, 320));
     stars = [];
     const nStars = lowFx() ? 50 : 110;
@@ -873,7 +884,19 @@
                    f: 0.03 + layer * 0.07, tw: Math.random() * 6 });
     }
   }
-  window.addEventListener('resize', () => { resize(); if (isTouch() && window.innerHeight > window.innerWidth && G.state === 'play') pause(); });
+  window.addEventListener('resize', () => { resize(); if (isTouch() && window.innerHeight > window.innerWidth && !document.body.classList.contains('portraitOk') && G.state === 'play') pause(); });
+  document.getElementById('forceLand').addEventListener('click', async () => {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    } catch (e) {
+      document.querySelector('#rotate .rtip').style.opacity = '1';
+    }
+    setTimeout(resize, 300);
+  });
+  document.getElementById('portraitOk').addEventListener('click', () => { document.body.classList.add('portraitOk'); resize(); });
   resize();
 
   // ---------- Spielzustand ----------
@@ -2087,7 +2110,7 @@
     }
 
     if (G.state === 'play' && G.level === 1 && (!G.jumped || !G.rotated)) {
-      const msg = !G.jumped ? 'Leertaste / Tippen = Springen' : 'In der Luft nochmal drücken = Drehen';
+      const msg = !G.jumped ? (isTouch() ? 'Tippen = Springen' : 'Leertaste / Tippen = Springen') : (isTouch() ? 'In der Luft nochmal tippen = Drehen' : 'In der Luft nochmal drücken = Drehen');
       ctx.globalAlpha = 0.65 + 0.35 * Math.sin(G.t * 5);
       ctx.font = '700 18px system-ui, sans-serif'; ctx.fillStyle = '#fff';
       ctx.fillText(msg, Math.max(blockX + 60, 200), groundY - 170);

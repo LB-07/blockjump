@@ -1,6 +1,6 @@
 // Blockjump Service Worker: macht das Spiel offline spielbar.
 // Strategie: erst Netz (damit Updates sofort ankommen), ohne Netz aus dem Speicher.
-const CACHE = 'blockjump-v1';
+const CACHE = 'blockjump-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 
